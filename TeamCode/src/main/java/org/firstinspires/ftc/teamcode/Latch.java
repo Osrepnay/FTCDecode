@@ -13,7 +13,7 @@ public class Latch {
     public static final double LATCH_RIGHT_CLOSE = 0.235;
     public static final double LATCH_RIGHT_OPEN = 0.1;
 
-    public static final long LATCH_DELAY = 100;
+    public static final long LATCH_DELAY = 1300;
 
     private final ServoWrapper latchLeft, latchRight;
 

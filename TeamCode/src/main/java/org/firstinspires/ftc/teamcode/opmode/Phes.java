@@ -30,6 +30,7 @@
 package org.firstinspires.ftc.teamcode.opmode;
 
 import com.acmerobotics.dashboard.FtcDashboard;
+import com.acmerobotics.dashboard.config.Config;
 import com.qualcomm.hardware.dfrobot.HuskyLens;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
@@ -44,6 +45,7 @@ import org.firstinspires.ftc.teamcode.noncents.CachingVoltageSensor;
 import org.firstinspires.ftc.teamcode.noncents.tasks.TaskRunner;
 
 @TeleOp
+@Config
 public class Phes extends OpMode {
     private Launcher launcher;
     private Latch latch;
@@ -64,7 +66,7 @@ public class Phes extends OpMode {
         runner = new TaskRunner();
     }
 
-    private double rpmTarget = 0;
+    public static double rpmTarget = 0;
 
     @Override
     public void loop() {
@@ -86,6 +88,7 @@ public class Phes extends OpMode {
         // launcher.setRawPower(-gamepad1.right_stick_y);
         dash.addData("rpm", launcher.getCurrentRpm());
         dash.addData("target rpm", launcher.getTargetRpm());
+        telemetry.addData("target rpm", launcher.getTargetRpm());
         dash.addData("power", power);
         dash.update();
         runner.update();

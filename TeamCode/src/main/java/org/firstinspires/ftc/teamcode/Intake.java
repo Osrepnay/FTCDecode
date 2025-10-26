@@ -7,14 +7,15 @@ import com.qualcomm.robotcore.hardware.HardwareMap;
 public class Intake {
     public static final double INTAKE_OFF = 0;
     public static final double INTAKE_ON = 1;
-    public static final double INTAKE_TRANSFER = 0.3;
+    public static final double INTAKE_TRANSFER = 0.5;
 
-    private final DcMotorEx intake;
+    public final DcMotorEx intake;
 
     public Intake(DcMotorEx intake) {
         this.intake = intake;
         // theoretically makes transferring more reliable
         intake.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        intake.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
     }
 
     public Intake(HardwareMap hardwareMap) {

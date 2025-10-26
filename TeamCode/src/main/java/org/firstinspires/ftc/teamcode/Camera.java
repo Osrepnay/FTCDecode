@@ -27,109 +27,114 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-package org.firstinspires.ftc.teamcode.opmode;
+package org.firstinspires.ftc.teamcode;
 
-import com.acmerobotics.dashboard.FtcDashboard;
-import com.qualcomm.robotcore.eventloop.opmode.OpMode;
-import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import android.util.Size;
 
-import org.firstinspires.ftc.robotcore.external.Telemetry;
+import com.qualcomm.robotcore.hardware.HardwareMap;
+
 import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
 import org.firstinspires.ftc.robotcore.external.hardware.camera.controls.ExposureControl;
 import org.firstinspires.ftc.robotcore.external.hardware.camera.controls.GainControl;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
-import org.firstinspires.ftc.teamcode.noncents.input.InputManager;
+import org.firstinspires.ftc.robotcore.external.navigation.Position;
+import org.firstinspires.ftc.robotcore.external.navigation.YawPitchRollAngles;
 import org.firstinspires.ftc.vision.VisionPortal;
 import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
 import org.firstinspires.ftc.vision.apriltag.AprilTagProcessor;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
-@TeleOp
-public class Camara extends OpMode {
-    private Telemetry dash;
-    private AprilTagProcessor processor;
-    private VisionPortal portal;
-    private InputManager inputManager;
+public class Camera {
+    private final AprilTagProcessor processor;
+    private final VisionPortal portal;
 
-    @Override
-    public void init() {
-        dash = FtcDashboard.getInstance().getTelemetry();
-        inputManager = new InputManager();
+    public static final long POLL_MS = 1000 / 20;
+    public static final double CAMERA_PITCH = Math.toRadians(13.5);
+
+    public Camera(HardwareMap hardwareMap) {
         processor = new AprilTagProcessor.Builder()
                 .setDrawAxes(true)
-                .setDrawTagOutline(true)
-                .setDrawCubeProjection(true)
+                .setDrawTagOutline(false)
+                .setDrawTagID(false)
+                .setDrawCubeProjection(false)
                 .setOutputUnits(DistanceUnit.MM, AngleUnit.RADIANS)
+                .setCameraPose(
+                        new Position(DistanceUnit.MM, 112, 0, 0, 0),
+                        new YawPitchRollAngles(AngleUnit.DEGREES, 0, -90 + CAMERA_PITCH, 0, 0)
+                )
                 .build();
         portal = new VisionPortal.Builder()
                 .addProcessor(processor)
                 .setCamera(hardwareMap.get(WebcamName.class, "Webcam 1"))
                 .setShowStatsOverlay(true)
                 .enableLiveView(true)
+                .setCameraResolution(new Size(960, 720))
+                .setStreamFormat(VisionPortal.StreamFormat.MJPEG)
                 .build();
     }
 
-    private double exposure = 100;
-    private long exposureRange = 100;
-    private float gain = 255;
-    private long gainRange = 100;
-    private long lastMs = -1;
     private boolean isStreaming = false;
+    private long last = Long.MIN_VALUE / 3;
+    private boolean lastFound = false;
+    private double lastBearing = 0;
+    private double lastRange = 0;
 
-    @Override
-    public void loop() {
+    public void update() {
+        long time = System.currentTimeMillis();
+        if (time - last < POLL_MS) {
+            return;
+        }
+        last = time;
+
         boolean wasStreaming = isStreaming;
         isStreaming = portal.getCameraState() == VisionPortal.CameraState.STREAMING;
 
-        long time = System.currentTimeMillis();
-        if (lastMs == -1) {
-            lastMs = time;
-        }
-        long delta = time - lastMs;
-        lastMs = time;
-
-        if (isStreaming) {
+        if (isStreaming && !wasStreaming) {
             ExposureControl exposureControl = portal.getCameraControl(ExposureControl.class);
             exposureControl.setMode(ExposureControl.Mode.Manual);
             TimeUnit timeUnit = TimeUnit.MICROSECONDS;
-            if (!wasStreaming) {
-                // exposure = exposureControl.getExposure(timeUnit);
-                exposureRange = exposureControl.getMaxExposure(timeUnit) - exposureControl.getMinExposure(timeUnit);
-            }
-            exposureControl.setExposure(Math.round(exposure), timeUnit);
+            exposureControl.setExposure(1000, timeUnit);
+            System.out.println(exposureControl.getMinExposure(TimeUnit.MICROSECONDS));
 
             GainControl gainControl = portal.getCameraControl(GainControl.class);
-            if (!wasStreaming) {
-                // gain = gainControl.getGain();
-                gainRange = gainControl.getMaxGain() - gainControl.getMinGain();
-            }
-            gainControl.setGain(Math.round(gain));
+            gainControl.setGain(255);
         }
-
-        exposure += Math.pow(gamepad1.left_stick_x, 3) * delta / 1000 * exposureRange / 50;
-        gain += (float) (Math.pow(gamepad1.right_stick_x, 3) * delta / 1000 * gainRange / 5);
-        telemetry.addData("papajp", gainRange);
-        telemetry.addData("exposure", exposure);
-        telemetry.addData("gain", gain);
 
         List<AprilTagDetection> detections = processor.getDetections();
         for (AprilTagDetection detection : detections) {
-            if (detection.id == 21 || detection.id == 20) {
-                telemetry.addData("goon", detection.center);
-                telemetry.addData("bearing", detection.ftcPose.bearing / Math.PI * 180);
+            if (detection.id == 24 || detection.id == 20) {
                 double bearing = detection.ftcPose.bearing;
-                double range = detection.ftcPose.range;
+                double range = Math.cos(CAMERA_PITCH) * detection.ftcPose.range;
                 double z = range * Math.cos(bearing);
-                double realY = range * Math.sin(bearing) - 116;
-                double realBearing = Math.atan2(realY, z);
-                telemetry.addData("adjusted bearing", realBearing / Math.PI * 180);
+                double realY = range * Math.sin(bearing) - 112;
+                double adjustedBearing = Math.atan2(realY, z);
+                lastRange = Math.sqrt(z * z + realY * realY);
+                lastBearing = adjustedBearing;
+                lastFound = true;
+                return;
             }
         }
 
-        inputManager.update();
-        dash.update();
+        lastFound = false;
+    }
+
+    public Optional<Double> getRange() {
+        if (lastFound) {
+            return Optional.of(lastRange);
+        } else {
+            return Optional.empty();
+        }
+    }
+
+    public Optional<Double> getBearing() {
+        if (lastFound) {
+            return Optional.of(lastBearing);
+        } else {
+            return Optional.empty();
+        }
     }
 }

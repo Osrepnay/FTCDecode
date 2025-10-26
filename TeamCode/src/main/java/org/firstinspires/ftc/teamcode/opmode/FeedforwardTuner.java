@@ -66,7 +66,7 @@ public class FeedforwardTuner extends OpMode {
 
     private final double powerInc = 0.125;
     private final long accelMs = 2500;
-    private final double sampleMs = 500;
+    private final double sampleMs = 2000;
 
     private double currPower = 0;
     // unset at very beginning only
@@ -82,7 +82,7 @@ public class FeedforwardTuner extends OpMode {
         long time = System.currentTimeMillis();
         // most of the time we're busy-looping so this technically makes it slower but
         // it doesnt change anything except maybe make it slightly less precise
-        long currentTicksCount = motors[0].getCurrentPosition();
+        long currentTicksCount = motors[1].getCurrentPosition();
         double voltage = voltageSensor.getVoltage();
         if (lastChange == -1 || time - lastChange > accelMs + sampleMs) {
             lastChange = time;

@@ -38,6 +38,18 @@ public interface Task {
         };
     }
 
+    static Task newWithUpdate(BooleanSupplier update) {
+        return Task.empty().withUpdate(update);
+    }
+
+    static Task newWithContinuous(Runnable runnable) {
+        return Task.empty().withContinuous(runnable);
+    }
+
+    static Task newWithOneshot(Runnable runnable) {
+        return Task.empty().withOneshot(runnable);
+    }
+
     static Task defer(Supplier<Task> supplier) {
         return new Task() {
             Task task;
@@ -236,16 +248,16 @@ public interface Task {
 
             @Override
             public boolean update() {
-                    // will run second immediately if first is done, kinda sketchy but removes overhead
-                    if (!thisDone[0]) {
-                        thisDone[0] = Task.this.update();
-                    }
-                    if (thisDone[0]) {
-                        return next.update();
-                    } else {
-                        return false;
-                    }
+                // will run second immediately if first is done, kinda sketchy but removes overhead
+                if (!thisDone[0]) {
+                    thisDone[0] = Task.this.update();
                 }
+                if (thisDone[0]) {
+                    return next.update();
+                } else {
+                    return false;
+                }
+            }
 
             @Override
             public boolean isCancellable() {
@@ -276,14 +288,14 @@ public interface Task {
 
             @Override
             public boolean update() {
-                    if (!dones[0]) {
-                        dones[0] = Task.this.update();
-                    }
-                    if (!dones[1]) {
-                        dones[1] = with.update();
-                    }
-                    return dones[0] && dones[1];
+                if (!dones[0]) {
+                    dones[0] = Task.this.update();
                 }
+                if (!dones[1]) {
+                    dones[1] = with.update();
+                }
+                return dones[0] && dones[1];
+            }
 
             @Override
             public boolean isCancellable() {
@@ -299,7 +311,7 @@ public interface Task {
 
     default void runToCompletion() {
         this.init();
-        while (!this.update());
+        while (!this.update()) ;
     }
 
 }

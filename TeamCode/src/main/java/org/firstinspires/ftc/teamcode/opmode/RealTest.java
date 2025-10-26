@@ -1,14 +1,17 @@
 package org.firstinspires.ftc.teamcode.opmode;
 
+import com.acmerobotics.dashboard.FtcDashboard;
 import com.acmerobotics.dashboard.config.Config;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.CRServo;
 import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.PwmControl;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.hardware.ServoImplEx;
 
+import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.teamcode.Drivetrain;
 import org.firstinspires.ftc.teamcode.noncents.input.InputManager;
 import org.firstinspires.ftc.teamcode.noncents.input.Trigger;
@@ -18,7 +21,7 @@ import org.firstinspires.ftc.teamcode.noncents.input.Trigger;
 public class RealTest extends OpMode {
     Servo servo;
     CRServo crServo;
-    DcMotor motor;
+    DcMotorEx motor;
     InputManager inp;
     Drivetrain dt;
     public static String motorName = "";
@@ -27,6 +30,8 @@ public class RealTest extends OpMode {
     String lastServoName = servoName;
     public static String crServoName = "";
     String lastCrServoName = crServoName;
+
+    Telemetry dash;
 
     @Override
     public void init() {
@@ -38,12 +43,14 @@ public class RealTest extends OpMode {
             ((ServoImplEx) servo).setPwmRange(new PwmControl.PwmRange(500, 2500));
         }
         if (!motorName.isEmpty()) {
-            motor = hardwareMap.get(DcMotor.class, motorName);
+            motor = hardwareMap.get(DcMotorEx.class, motorName);
         }
         // dt = new Drivetrain(hardwareMap);
         inp = new InputManager();
         inp.addTrigger(new Trigger(Trigger.TriggerType.BEGIN, () -> gamepad1.a, () -> servoPos += 0.005));
         inp.addTrigger(new Trigger(Trigger.TriggerType.BEGIN, () -> gamepad1.b, () -> servoPos -= 0.005));
+
+        dash = FtcDashboard.getInstance().getTelemetry();
     }
 
     public static double servoPos = 0;
@@ -55,7 +62,7 @@ public class RealTest extends OpMode {
         // dt.setMixedPowers(-gamepad1.left_stick_y, gamepad1.left_stick_x, gamepad1.right_stick_x);
         if (!motorName.equals(lastMotorName)) {
             lastMotorName = motorName;
-            motor = hardwareMap.get(DcMotor.class, motorName);
+            motor = hardwareMap.get(DcMotorEx.class, motorName);
         }
         if (!servoName.equals(lastServoName)) {
             lastServoName = servoName;
@@ -77,6 +84,9 @@ public class RealTest extends OpMode {
         if (motor != null) {
             motor.setPower(gamepad1.right_trigger - gamepad1.left_trigger);
             telemetry.addData("motorpos", motor.getCurrentPosition());
+            dash.addData("motor vel", motor.getVelocity() / 103.8 * 60);
         }
+
+        dash.update();
     }
 }
