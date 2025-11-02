@@ -6,6 +6,7 @@ import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.hardware.IMU;
+import com.qualcomm.robotcore.hardware.VoltageSensor;
 
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.teamcode.noncents.Lerp;
@@ -19,9 +20,13 @@ import java.util.Optional;
 public class Drivetrain {
     private final DcMotorEx[] wheels;
     private final IMU imu;
-    public static PIDController headingPid = new PIDController(0.7, 0, 0.7);
+    private final VoltageSensor voltageSensor;
+    // normal pid: 5, 0, 60
+    public static PIDController headingPid = new PIDController(0.9, 0.000, 2)
+            .withIntegralRange(5)
+            .withIntegralCap(200);
 
-    public Drivetrain(DcMotorEx[] wheels, IMU imu) {
+    public Drivetrain(DcMotorEx[] wheels, IMU imu, VoltageSensor voltageSensor) {
         for (int i = 0; i < wheels.length; i++) {
             // wheels[i] = new CachingDcMotorEx(wheels[i]);
             wheels[i].setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
@@ -36,40 +41,61 @@ public class Drivetrain {
                 RevHubOrientationOnRobot.UsbFacingDirection.UP
         )));
         this.imu.resetYaw();
+
+        this.voltageSensor = voltageSensor;
     }
 
-    public Drivetrain(HardwareMap hardwareMap) {
+    public Drivetrain(HardwareMap hardwareMap, VoltageSensor voltageSensor) {
         this(new DcMotorEx[]{
                 hardwareMap.get(DcMotorEx.class, "wheelFrontLeft"),
                 hardwareMap.get(DcMotorEx.class, "wheelFrontRight"),
                 hardwareMap.get(DcMotorEx.class, "wheelBackLeft"),
                 hardwareMap.get(DcMotorEx.class, "wheelBackRight")
-        }, hardwareMap.get(IMU.class, "imu"));
+        }, hardwareMap.get(IMU.class, "imu"), voltageSensor);
     }
+
+    private double currentHeading = 0;
 
     public double getHeading() {
-        return imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.RADIANS);
+        return currentHeading;
     }
 
-    private Optional<Double> headingLock = Optional.empty();
+    private boolean headingLocked = false;
+    private boolean headingLockSet = false;
+    private double headingLock = 0;
+    public static double lowpassOldFrac = 0.9;
 
     // lock a heading relative to the current one
     public void lockHeading(double headingRad) {
+        headingLocked = true;
         double heading = getHeading();
-        double newHeading = heading + headingRad;
-        headingLock = Optional.of(newHeading);
+        double newHeading;
+        // disable lowpass math if no previous data
+        if (!headingLockSet) {
+            newHeading = heading + headingRad;
+        } else {
+            newHeading = headingLock * lowpassOldFrac + (heading + headingRad) * (1 - lowpassOldFrac);
+        }
+        headingLockSet = true;
+        headingLock = newHeading;
     }
 
     public void unlockHeading() {
-        headingLock = Optional.empty();
+        headingLocked = false;
+        headingLockSet = false;
+        headingLock = 0;
     }
 
     public boolean isHeadingLocked() {
-        return headingLock.isPresent();
+        return headingLocked;
     }
 
     public Optional<Double> getHeadingLock() {
-        return headingLock;
+        if (headingLocked) {
+            return Optional.of(headingLock);
+        } else {
+            return Optional.empty();
+        }
     }
 
     public void driveFieldCentric(double forward, double lateral, double rotate) {
@@ -81,7 +107,17 @@ public class Drivetrain {
         );
     }
 
+    public double fullSqrt(double x) {
+        if (x < 0) {
+            return -Math.sqrt(-x);
+        } else {
+            return Math.sqrt(x);
+        }
+    }
+
     public void driveBotCentric(double forward, double lateral, double rotate) {
+        currentHeading = imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.RADIANS);
+
         Lerp orthoLerp = new Lerp(new double[][]{
                 {0, 0},
                 {0.02, 0.03},
@@ -94,19 +130,19 @@ public class Drivetrain {
                 {0.4, 0.15},
                 {1, 1}
         });
-        ;
+
         forward = orthoLerp.interpolateMagnitude(forward);
         lateral = orthoLerp.interpolateMagnitude(lateral);
-        if (headingLock.isPresent()) {
+        if (isHeadingLocked()) {
             // center at headingLock, easier math
-            double heading = getHeading() - headingLock.get();
+            double heading = getHeading() - headingLock;
             // wraparound
             if (heading < -Math.PI) {
                 heading += Math.PI * 2;
             } else if (heading > Math.PI) {
                 heading -= Math.PI * 2;
             }
-            rotate = -headingPid.update(0, heading);
+            rotate = -headingPid.update(0, fullSqrt(heading)) * 13 / voltageSensor.getVoltage();
         } else {
             rotate = rotateLerp.interpolateMagnitude(rotate);
         }

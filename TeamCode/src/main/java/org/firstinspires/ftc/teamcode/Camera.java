@@ -52,7 +52,7 @@ public class Camera {
     private final AprilTagProcessor processor;
     private final VisionPortal portal;
 
-    public static final long POLL_MS = 1000 / 20;
+    public static final long POLL_MS = 1000 / 30;
     public static final double CAMERA_PITCH = Math.toRadians(13.5);
 
     public Camera(HardwareMap hardwareMap) {
@@ -78,7 +78,7 @@ public class Camera {
     }
 
     private boolean isStreaming = false;
-    private long last = Long.MIN_VALUE / 3;
+    private long last = -1;
     private boolean lastFound = false;
     private double lastBearing = 0;
     private double lastRange = 0;
@@ -110,7 +110,7 @@ public class Camera {
                 double bearing = detection.ftcPose.bearing;
                 double range = Math.cos(CAMERA_PITCH) * detection.ftcPose.range;
                 double z = range * Math.cos(bearing);
-                double realY = range * Math.sin(bearing) - 112;
+                double realY = range * Math.sin(bearing) - 140; // 112 theoretical?
                 double adjustedBearing = Math.atan2(realY, z);
                 lastRange = Math.sqrt(z * z + realY * realY);
                 lastBearing = adjustedBearing;
@@ -136,5 +136,9 @@ public class Camera {
         } else {
             return Optional.empty();
         }
+    }
+
+    public long lastUpdate() {
+        return last;
     }
 }

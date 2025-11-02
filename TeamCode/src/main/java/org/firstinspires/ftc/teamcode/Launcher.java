@@ -44,9 +44,10 @@ public class Launcher {
     );
     public static final Lerp rpmDist = new Lerp(
             new double[][]{
-                    {3072, 1030},
-                    {2634, 970},
-                    {2260, 920},
+                    {2900, 1082}, // far far
+                    {2510, 1055}, // near far
+                    {1530, 900}, // far near
+                    {960, 890}, // near near
             }
     );
 

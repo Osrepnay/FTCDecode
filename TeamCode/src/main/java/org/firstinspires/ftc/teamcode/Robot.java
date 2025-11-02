@@ -44,11 +44,15 @@ public class Robot {
     public Robot(HardwareMap hardwareMap) {
         // ??
         VoltageSensor voltageSensor = new CachingVoltageSensor(hardwareMap.voltageSensor.iterator().next());
-        drivetrain = new Drivetrain(hardwareMap);
+        drivetrain = new Drivetrain(hardwareMap, voltageSensor);
         intake = new Intake(hardwareMap);
         latch = new Latch(hardwareMap);
         launcher = new Launcher(hardwareMap, voltageSensor);
         camera = new Camera(hardwareMap);
+    }
+
+    public Task init() {
+        return latch.close();
     }
 
     public void performTransition(TaskRunner runner, Transfer transfer) {
@@ -61,8 +65,7 @@ public class Robot {
                 switch (transfer) {
                     case LEFT_BUMPER_START:
                         targetState = State.INTAKING;
-                        task = latch.close()
-                                .andThen(Task.newWithOneshot(() -> intake.setPower(Intake.INTAKE_ON)));
+                        task = Task.newWithOneshot(() -> intake.setPower(Intake.INTAKE_ON));
                         break;
                     case RIGHT_BUMPER_START:
                         targetState = State.PRIMED;
@@ -74,9 +77,7 @@ public class Robot {
             case INTAKING:
                 if (transfer == Transfer.RIGHT_BUMPER_START) {
                     targetState = State.IDLE;
-                    task = Task.newWithOneshot(() -> intake.setPower(Intake.INTAKE_OFF))
-                            .andThen(new DelayTask(300))
-                            .andThen(latch.open());
+                    task = Task.newWithOneshot(() -> intake.setPower(Intake.INTAKE_OFF));
                 }
                 break;
             case PRIMED:
@@ -87,7 +88,9 @@ public class Robot {
                         break;
                     case RIGHT_BUMPER_START:
                         targetState = State.SHOOTING;
-                        task = launcher.waitForSpinUp()
+                        task = Task.newWithOneshot(() -> intake.setPower(Intake.INTAKE_OFF))
+                                .andThen(launcher.waitForSpinUp())
+                                .with(latch.open())
                                 .andThen(Task.newWithOneshot(() -> intake.setPower(Intake.INTAKE_TRANSFER)));
                         break;
                 }
@@ -98,7 +101,7 @@ public class Robot {
                     task = Task.newWithOneshot(() -> {
                         launcher.killPower();
                         intake.setPower(Intake.INTAKE_OFF);
-                    });
+                    }).with(latch.close());
                 }
         }
         if (targetState != null) {
@@ -114,16 +117,23 @@ public class Robot {
         }
     }
 
+    private long cameraLastUpdate = -1;
+
     public void update() {
         launcher.update();
         camera.update();
 
         if (notTransitioning() && !forceUnlock && state.spunUp) {
             Optional<Double> camHeading = camera.getBearing();
-            if (camHeading.isPresent()) {
-                drivetrain.lockHeading(camHeading.get());
-            } else {
-                drivetrain.unlockHeading();
+            // make sure we're not putting stale camera angles into drivetrain
+            // because lockHeading is relative
+            if (cameraLastUpdate != camera.lastUpdate()) {
+                cameraLastUpdate = camera.lastUpdate();
+                if (camHeading.isPresent()) {
+                    drivetrain.lockHeading(camHeading.get());
+                } else {
+                    drivetrain.unlockHeading();
+                }
             }
         } else {
             drivetrain.unlockHeading();
@@ -136,6 +146,10 @@ public class Robot {
 
     public State getState() {
         return state;
+    }
+
+    public Optional<State> getNextState() {
+        return Optional.ofNullable(futureStates.peekFirst());
     }
 
     public boolean notTransitioning() {

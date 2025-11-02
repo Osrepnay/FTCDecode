@@ -13,6 +13,7 @@ import com.qualcomm.robotcore.hardware.ServoImplEx;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.teamcode.Drivetrain;
+import org.firstinspires.ftc.teamcode.noncents.CachingVoltageSensor;
 import org.firstinspires.ftc.teamcode.noncents.input.InputManager;
 import org.firstinspires.ftc.teamcode.noncents.input.Trigger;
 
@@ -24,9 +25,9 @@ public class RealTest extends OpMode {
     DcMotorEx motor;
     InputManager inp;
     Drivetrain dt;
-    public static String motorName = "";
+    public static String motorName = "intake";
     String lastMotorName = motorName;
-    public static String servoName = "extendoPivot";
+    public static String servoName = "";
     String lastServoName = servoName;
     public static String crServoName = "";
     String lastCrServoName = crServoName;
@@ -45,7 +46,7 @@ public class RealTest extends OpMode {
         if (!motorName.isEmpty()) {
             motor = hardwareMap.get(DcMotorEx.class, motorName);
         }
-        // dt = new Drivetrain(hardwareMap);
+        dt = new Drivetrain(hardwareMap, new CachingVoltageSensor(hardwareMap.voltageSensor.iterator().next()));
         inp = new InputManager();
         inp.addTrigger(new Trigger(Trigger.TriggerType.BEGIN, () -> gamepad1.a, () -> servoPos += 0.005));
         inp.addTrigger(new Trigger(Trigger.TriggerType.BEGIN, () -> gamepad1.b, () -> servoPos -= 0.005));
@@ -59,7 +60,7 @@ public class RealTest extends OpMode {
     @Override
     public void loop() {
         inp.update();
-        // dt.setMixedPowers(-gamepad1.left_stick_y, gamepad1.left_stick_x, gamepad1.right_stick_x);
+        dt.driveBotCentric(-gamepad1.left_stick_y, gamepad1.left_stick_x, gamepad1.right_stick_x);
         if (!motorName.equals(lastMotorName)) {
             lastMotorName = motorName;
             motor = hardwareMap.get(DcMotorEx.class, motorName);
@@ -83,8 +84,9 @@ public class RealTest extends OpMode {
         }
         if (motor != null) {
             motor.setPower(gamepad1.right_trigger - gamepad1.left_trigger);
+            telemetry.addData("motorPower", motor.getPower());
             telemetry.addData("motorpos", motor.getCurrentPosition());
-            dash.addData("motor vel", motor.getVelocity() / 103.8 * 60);
+            telemetry.addData("motor vel", motor.getVelocity() / 145.1 * 60);
         }
 
         dash.update();

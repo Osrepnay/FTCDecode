@@ -6,8 +6,8 @@ import com.qualcomm.robotcore.hardware.HardwareMap;
 
 public class Intake {
     public static final double INTAKE_OFF = 0;
-    public static final double INTAKE_ON = 1;
-    public static final double INTAKE_TRANSFER = 0.5;
+    public static final double INTAKE_ON = 0.3;
+    public static final double INTAKE_TRANSFER = 0.2;
 
     public final DcMotorEx intake;
 
