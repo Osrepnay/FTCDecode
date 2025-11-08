@@ -8,9 +8,9 @@ import org.firstinspires.ftc.teamcode.noncents.ServoWrapper;
 import org.firstinspires.ftc.teamcode.noncents.tasks.Task;
 
 public class Latch {
-    public static final double LATCH_LEFT_CLOSE = 0.2;
+    public static final double LATCH_LEFT_CLOSE = 0.21;
     public static final double LATCH_LEFT_OPEN = 0.34;
-    public static final double LATCH_RIGHT_CLOSE = 0.235;
+    public static final double LATCH_RIGHT_CLOSE = 0.225;
     public static final double LATCH_RIGHT_OPEN = 0.1;
 
     public static final long LATCH_DELAY = 1300;

@@ -29,42 +29,32 @@
 
 package org.firstinspires.ftc.teamcode.opmode;
 
-import androidx.annotation.NonNull;
-
 import com.acmerobotics.dashboard.FtcDashboard;
-import com.acmerobotics.roadrunner.ftc.Encoder;
-import com.acmerobotics.roadrunner.ftc.LazyImu;
-import com.acmerobotics.roadrunner.ftc.OverflowEncoder;
-import com.acmerobotics.roadrunner.ftc.RawEncoder;
+import com.qualcomm.hardware.lynx.LynxModule;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
-import com.qualcomm.robotcore.hardware.DcMotorEx;
-import com.qualcomm.robotcore.hardware.DcMotorSimple;
-import com.qualcomm.robotcore.hardware.IMU;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
-import org.firstinspires.ftc.teamcode.Intake;
+import org.firstinspires.ftc.teamcode.Color;
 import org.firstinspires.ftc.teamcode.Robot;
 import org.firstinspires.ftc.teamcode.noncents.input.InputManager;
 import org.firstinspires.ftc.teamcode.noncents.input.Trigger;
 import org.firstinspires.ftc.teamcode.noncents.tasks.TaskRunner;
 
 import java.util.ArrayDeque;
-import java.util.Optional;
+import java.util.List;
 
 @TeleOp
 public class YugePhart extends OpMode {
     private Robot robot;
-    private Encoder forward;
     private TaskRunner runner;
     private Telemetry dash;
     private InputManager inputManager;
+    private List<LynxModule> hubs;
 
     @Override
     public void init() {
         robot = new Robot(hardwareMap);
-        forward = new OverflowEncoder(new RawEncoder(hardwareMap.get(DcMotorEx.class, "wheelBackLeft")));
-        forward.setDirection(DcMotorSimple.Direction.REVERSE);
         runner = new TaskRunner();
         dash = FtcDashboard.getInstance().getTelemetry();
         inputManager = new InputManager();
@@ -73,6 +63,14 @@ public class YugePhart extends OpMode {
                 () -> robot.drivetrain.isHeadingLocked(),
                 () -> gamepad1.rumble(100)
         ));
+
+        hubs = hardwareMap.getAll(LynxModule.class);
+        hubs.forEach(h -> h.setBulkCachingMode(LynxModule.BulkCachingMode.MANUAL));
+
+        if (!Color.getCurrentColor().isPresent()) {
+            telemetry.addLine("WARNING: NO COLOR SET! RUN ASetRed OR ASetBlue");
+            telemetry.update();
+        }
     }
 
     private final ArrayDeque<Long> lastMs = new ArrayDeque<>();
@@ -86,6 +84,8 @@ public class YugePhart extends OpMode {
             runner.sendTask(robot.init());
         }
 
+        hubs.forEach(LynxModule::clearBulkCache);
+
         long time = System.currentTimeMillis();
         lastMs.offerLast(time);
         while (lastMs.size() > 10) {
@@ -95,12 +95,6 @@ public class YugePhart extends OpMode {
             telemetry.addData("loop ms", (double) (lastMs.getLast() - lastMs.getFirst()) / lastMs.size());
         }
 
-        if (robot.notTransitioning() && robot.getState() == Robot.State.IDLE
-                || robot.getNextState().map(s -> s == Robot.State.IDLE).orElse(false)) {
-            // hold in ball while going backwards
-            double axialVel = Optional.ofNullable(forward.getPositionAndVelocity().rawVelocity).orElse(0);
-            robot.intake.setPower(Math.min(0.4, Math.max(0, (-axialVel / 30000) + 0.0)));
-        }
         if (gamepad1.rightBumperWasPressed()) {
             robot.performTransition(runner, Robot.Transfer.RIGHT_BUMPER_START);
         }
@@ -116,15 +110,17 @@ public class YugePhart extends OpMode {
 
         telemetry.addData("state", robot.getState());
         telemetry.addData("rpm", robot.launcher.getCurrentRpm());
-        telemetry.addData("headingLock", robot.drivetrain.getHeadingLock().map(x -> x * 180 / Math.PI).orElse(0.0));
+        telemetry.addData("headingLock", robot.drivetrain.getHeadingLock().map(Math::toDegrees).orElse(0.0));
         telemetry.addData("heading", robot.drivetrain.getHeading() * 180 / Math.PI);
         telemetry.addData("range", robot.camera.getRange());
         dash.addData("rpm", robot.launcher.getCurrentRpm());
         dash.addData("target rpm", robot.launcher.getTargetRpm());
-        dash.addData("headingLock", robot.drivetrain.getHeadingLock().map(x -> x * 180 / Math.PI).orElse(0.0));
-        dash.addData("heading", robot.drivetrain.getHeading() * 180 / Math.PI);
-        dash.addData("inverse camera", -robot.camera.getBearing().map(x -> x * 180 / Math.PI).orElse(0.0));
-        dash.addData("plus", (robot.camera.getBearing().orElse(0.0) + robot.drivetrain.getHeading()) * 180 / Math.PI);
+        dash.addData("headingLock", robot.drivetrain.getHeadingLock().orElse(0.0));
+        dash.addData("headingLockMinus", robot.drivetrain.getHeadingLock().orElse(0.0));
+        dash.addData("heading", robot.drivetrain.getHeading());
+        dash.addData("headingBias", robot.drivetrain.getHeadingBias());
+        dash.addData("camera", robot.camera.getBearing().map(Math::toDegrees).orElse(0.0));
+        dash.addData("raw", robot.drivetrain.getRawHeading());
 
         dash.update();
         runner.update();

@@ -40,6 +40,7 @@ import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Position;
 import org.firstinspires.ftc.robotcore.external.navigation.YawPitchRollAngles;
+import org.firstinspires.ftc.teamcode.noncents.Lerp;
 import org.firstinspires.ftc.vision.VisionPortal;
 import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
 import org.firstinspires.ftc.vision.apriltag.AprilTagProcessor;
@@ -66,6 +67,7 @@ public class Camera {
                         new Position(DistanceUnit.MM, 112, 0, 0, 0),
                         new YawPitchRollAngles(AngleUnit.DEGREES, 0, -90 + CAMERA_PITCH, 0, 0)
                 )
+                // .setLensIntrinsics(1616.209218647385, 1609.9012062771578, 440.67821471711267, 478.05072881529793)
                 .build();
         portal = new VisionPortal.Builder()
                 .addProcessor(processor)
@@ -73,6 +75,7 @@ public class Camera {
                 .setShowStatsOverlay(true)
                 .enableLiveView(true)
                 .setCameraResolution(new Size(960, 720))
+                // .setCameraResolution(new Size(640, 480))
                 .setStreamFormat(VisionPortal.StreamFormat.MJPEG)
                 .build();
     }
@@ -97,23 +100,50 @@ public class Camera {
             ExposureControl exposureControl = portal.getCameraControl(ExposureControl.class);
             exposureControl.setMode(ExposureControl.Mode.Manual);
             TimeUnit timeUnit = TimeUnit.MICROSECONDS;
-            exposureControl.setExposure(1000, timeUnit);
-            System.out.println(exposureControl.getMinExposure(TimeUnit.MICROSECONDS));
+            exposureControl.setExposure(1500, timeUnit);
 
             GainControl gainControl = portal.getCameraControl(GainControl.class);
-            gainControl.setGain(255);
+            gainControl.setGain(180);
         }
 
         List<AprilTagDetection> detections = processor.getDetections();
         for (AprilTagDetection detection : detections) {
             if (detection.id == 24 || detection.id == 20) {
-                double bearing = detection.ftcPose.bearing;
-                double range = Math.cos(CAMERA_PITCH) * detection.ftcPose.range;
-                double z = range * Math.cos(bearing);
-                double realY = range * Math.sin(bearing) - 140; // 112 theoretical?
-                double adjustedBearing = Math.atan2(realY, z);
-                lastRange = Math.sqrt(z * z + realY * realY);
-                lastBearing = adjustedBearing;
+                double elevation = detection.ftcPose.elevation;
+                // correct for the camera pitch
+                double flattenMult = 1.0 / Math.cos(elevation) * Math.cos(elevation + CAMERA_PITCH);
+                // TODO check to see if these are equal to the range * Math.cos(bearing) * flattenMult ones
+                double y = detection.ftcPose.y * flattenMult;
+                double realX = detection.ftcPose.x + 180; // theoretical 112?
+                double adjustedBearing = Math.atan2(-realX, y * (1 / 0.89));
+                // correct for ball size in yaw correction
+                // incredibly hacky
+                Lerp yawLerp = new Lerp(new double[][] {
+                    {-30, 30}, // far
+                    {40, 0}
+                });
+                double yawCorrection = Color.getCurrentColor().map(c -> {
+                    switch (c) {
+                        case RED:
+                            return Math.toRadians(yawLerp.interpolate(Math.toDegrees(detection.ftcPose.yaw)));
+                        case BLUE:
+                            return -Math.toRadians(yawLerp.interpolate(Math.toDegrees(-detection.ftcPose.yaw)));
+                    }
+                    // ?????
+                    return 0.0;
+                }).orElse(0.0);
+                double toBackboardAngle = adjustedBearing
+                    + Math.toRadians(90)
+                    + detection.ftcPose.yaw
+                    + yawCorrection;
+                double toBackboardDist = 25.4 * 18.5 / Math.sqrt(2) / Math.cos(Math.PI / 4 - Math.abs(yawCorrection));
+                System.out.printf("%.2f %.2f\n", toBackboardDist / 25.4, Math.toDegrees(yawCorrection));
+                double backboardBearing = Math.atan2(
+                        -(realX + Math.cos(toBackboardAngle) * toBackboardDist),
+                        (y * (1 / 0.89) + Math.sin(toBackboardAngle) * toBackboardDist)
+                );
+                lastRange = Math.sqrt(y * y + realX * realX);
+                lastBearing = backboardBearing;
                 lastFound = true;
                 return;
             }

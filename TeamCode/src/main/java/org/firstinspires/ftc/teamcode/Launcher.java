@@ -17,7 +17,6 @@ import java.util.Objects;
 
 @Config
 public class Launcher {
-    public static double LAUNCH_RPM = 1000;
     public static final double RPM_TOLERANCE = 10;
     // public static final long RPM_SAMPLING_MS = 100;
 
@@ -25,7 +24,7 @@ public class Launcher {
     private final VoltageSensor voltageSensor;
 
     // really should be private final but dashboard
-    public static PIDController pid = new PIDController(0.004, 0.000001, 0)
+    public PIDController pid = new PIDController(0.004, 0.000001, 0)
             .withIntegralRange(30);
     public static final Lerp rpmFeedforward = new Lerp(
             // 1620rpm
@@ -44,13 +43,17 @@ public class Launcher {
     );
     public static final Lerp rpmDist = new Lerp(
             new double[][]{
-                    {2900, 1082}, // far far
-                    {2510, 1055}, // near far
-                    {1530, 900}, // far near
-                    {960, 890}, // near near
+                    {2990, 1090},
+                    {2640, 1045},
+                    {2570, 1010},
+                    {2100, 970},
+                    {1900, 960},
+                    {1698, 890},
+                    {850, 835},
             }
     );
 
+    public double fallbackRpm = 1000;
     public double targetRpm = 0;
 
     /*

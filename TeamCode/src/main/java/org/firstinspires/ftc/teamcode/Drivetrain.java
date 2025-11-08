@@ -18,13 +18,15 @@ import java.util.Optional;
 
 @Config
 public class Drivetrain {
-    private final DcMotorEx[] wheels;
-    private final IMU imu;
-    private final VoltageSensor voltageSensor;
+    public final DcMotorEx[] wheels;
+    public final IMU imu;
+    public final VoltageSensor voltageSensor;
     // normal pid: 5, 0, 60
-    public static PIDController headingPid = new PIDController(0.9, 0.000, 2)
+    // TODO static is suuper bad, but needed for dashboard
+    public static PIDController headingPid = new PIDController(0.7, 0.000, 0)
             .withIntegralRange(5)
             .withIntegralCap(200);
+    public static double lowpassOldFrac = 0.82;
 
     public Drivetrain(DcMotorEx[] wheels, IMU imu, VoltageSensor voltageSensor) {
         for (int i = 0; i < wheels.length; i++) {
@@ -45,13 +47,13 @@ public class Drivetrain {
         this.voltageSensor = voltageSensor;
     }
 
-    public Drivetrain(HardwareMap hardwareMap, VoltageSensor voltageSensor) {
+    public Drivetrain(HardwareMap hardwareMap, IMU imu, VoltageSensor voltageSensor) {
         this(new DcMotorEx[]{
                 hardwareMap.get(DcMotorEx.class, "wheelFrontLeft"),
                 hardwareMap.get(DcMotorEx.class, "wheelFrontRight"),
                 hardwareMap.get(DcMotorEx.class, "wheelBackLeft"),
                 hardwareMap.get(DcMotorEx.class, "wheelBackRight")
-        }, hardwareMap.get(IMU.class, "imu"), voltageSensor);
+        }, imu, voltageSensor);
     }
 
     private double currentHeading = 0;
@@ -63,18 +65,45 @@ public class Drivetrain {
     private boolean headingLocked = false;
     private boolean headingLockSet = false;
     private double headingLock = 0;
-    public static double lowpassOldFrac = 0.9;
+    private double headingBias = 0;
+    private double rawHeading = 0;
+
+    public double getRawHeading() {
+        return rawHeading + headingBias;
+    }
+
+    public void setHeadingBias(double rad) {
+        headingBias = rad;
+    }
+
+    public double getHeadingBias() {
+        return headingBias;
+    }
+
+    // normalizes to (-180, 180]
+    private double normalizeHeading(double heading) {
+        heading %= Math.PI * 2;
+        // there's probably a more elegant way but brian on work
+        if (heading <= -Math.PI) {
+            heading += Math.PI * 2;
+        } else if (heading > Math.PI) {
+            heading -= Math.PI * 2;
+        }
+        return heading;
+    }
 
     // lock a heading relative to the current one
     public void lockHeading(double headingRad) {
         headingLocked = true;
         double heading = getHeading();
         double newHeading;
+        rawHeading = normalizeHeading(heading + headingRad);
         // disable lowpass math if no previous data
         if (!headingLockSet) {
-            newHeading = heading + headingRad;
+            newHeading = rawHeading;
         } else {
-            newHeading = headingLock * lowpassOldFrac + (heading + headingRad) * (1 - lowpassOldFrac);
+            double diff = normalizeHeading(rawHeading - headingLock);
+            newHeading = normalizeHeading(headingLock + diff * (1 - lowpassOldFrac));
         }
         headingLockSet = true;
         headingLock = newHeading;
@@ -84,6 +113,7 @@ public class Drivetrain {
         headingLocked = false;
         headingLockSet = false;
         headingLock = 0;
+        headingBias = 0;
     }
 
     public boolean isHeadingLocked() {
@@ -92,7 +122,7 @@ public class Drivetrain {
 
     public Optional<Double> getHeadingLock() {
         if (headingLocked) {
-            return Optional.of(headingLock);
+            return Optional.of(headingLock + headingBias);
         } else {
             return Optional.empty();
         }
@@ -133,16 +163,12 @@ public class Drivetrain {
 
         forward = orthoLerp.interpolateMagnitude(forward);
         lateral = orthoLerp.interpolateMagnitude(lateral);
-        if (isHeadingLocked()) {
+        Optional<Double> headingLock = getHeadingLock();
+        if (headingLock.isPresent()) {
             // center at headingLock, easier math
-            double heading = getHeading() - headingLock;
-            // wraparound
-            if (heading < -Math.PI) {
-                heading += Math.PI * 2;
-            } else if (heading > Math.PI) {
-                heading -= Math.PI * 2;
-            }
-            rotate = -headingPid.update(0, fullSqrt(heading)) * 13 / voltageSensor.getVoltage();
+            double headingErr = normalizeHeading(getHeading() - headingLock.get());
+            rotate = -headingPid.update(0, fullSqrt(headingErr)) * 13 / voltageSensor.getVoltage();
+            // rotate = -headingPid.update(0, headingErr) * 13 / voltageSensor.getVoltage();
         } else {
             rotate = rotateLerp.interpolateMagnitude(rotate);
         }
@@ -152,6 +178,25 @@ public class Drivetrain {
                 forward - lateral + rotate,
                 forward + lateral - rotate
         };
+        if (isHeadingLocked()) {
+            double max = 1;
+            for (int i = 0; i < wheels.length; i++) {
+                max = Math.max(Math.abs(powers[i]), max);
+            }
+            double space = 1 - Math.abs(rotate);
+            double extra = max - 1;
+            if (extra > 0) {
+                double fac = space / (space + extra);
+                forward *= fac;
+                lateral *= fac;
+                powers = new double[]{
+                        forward + lateral + rotate,
+                        forward - lateral - rotate,
+                        forward - lateral + rotate,
+                        forward + lateral - rotate
+                };
+            }
+        }
         setRawPowers(powers);
     }
 

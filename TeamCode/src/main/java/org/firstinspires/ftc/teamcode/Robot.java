@@ -1,16 +1,30 @@
 package org.firstinspires.ftc.teamcode;
 
+import com.acmerobotics.dashboard.config.Config;
+import com.acmerobotics.roadrunner.Pose2d;
+import com.acmerobotics.roadrunner.ftc.Encoder;
+import com.acmerobotics.roadrunner.ftc.OverflowEncoder;
+import com.acmerobotics.roadrunner.ftc.RawEncoder;
+import com.qualcomm.robotcore.hardware.DcMotorEx;
+import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.HardwareMap;
+import com.qualcomm.robotcore.hardware.IMU;
 import com.qualcomm.robotcore.hardware.VoltageSensor;
 
+import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
+import org.firstinspires.ftc.teamcode.noncents.CachingIMU;
 import org.firstinspires.ftc.teamcode.noncents.CachingVoltageSensor;
 import org.firstinspires.ftc.teamcode.noncents.tasks.DelayTask;
 import org.firstinspires.ftc.teamcode.noncents.tasks.Task;
 import org.firstinspires.ftc.teamcode.noncents.tasks.TaskRunner;
+import org.firstinspires.ftc.teamcode.rr.Localizer;
+import org.firstinspires.ftc.teamcode.rr.MecanumDrive;
+import org.firstinspires.ftc.teamcode.rr.TwoDeadWheelLocalizer;
 
 import java.util.ArrayDeque;
 import java.util.Optional;
 
+@Config
 public class Robot {
     public enum State {
         IDLE(false),
@@ -31,31 +45,53 @@ public class Robot {
         RIGHT_BUMPER_END
     }
 
+    public final CachingIMU imu;
     public final Drivetrain drivetrain;
     public final Intake intake;
     public final Latch latch;
     public final Launcher launcher;
     public final Camera camera;
+    public final Localizer localizer;
+    public final Encoder par, perp;
 
     private State state = State.IDLE;
     private final ArrayDeque<State> futureStates = new ArrayDeque<>();
     private boolean forceUnlock = false;
+    // TODO this only does things on rpm control for now
+    // rememer to integrate when fix the drivetrain update weirdness
+    private boolean cameraDisabled = false;
 
     public Robot(HardwareMap hardwareMap) {
-        // ??
         VoltageSensor voltageSensor = new CachingVoltageSensor(hardwareMap.voltageSensor.iterator().next());
-        drivetrain = new Drivetrain(hardwareMap, voltageSensor);
+        imu = new CachingIMU(hardwareMap.get(IMU.class, "imu"));
+        drivetrain = new Drivetrain(hardwareMap, imu, voltageSensor);
         intake = new Intake(hardwareMap);
         latch = new Latch(hardwareMap);
         launcher = new Launcher(hardwareMap, voltageSensor);
         camera = new Camera(hardwareMap);
+        localizer = new TwoDeadWheelLocalizer(hardwareMap, imu, MecanumDrive.PARAMS.inPerTick, new Pose2d(0, 0, 0));
+        par = new OverflowEncoder(new RawEncoder(hardwareMap.get(DcMotorEx.class, "wheelBackLeft")));
+        perp = new OverflowEncoder(new RawEncoder(hardwareMap.get(DcMotorEx.class, "wheelFrontRight")));
+        par.setDirection(DcMotorSimple.Direction.REVERSE);
     }
 
     public Task init() {
         return latch.close();
     }
 
+    // TODO this whole thing is kinda a mess
+    // i think best thing right now might be a transfer queue? and everything is deferred
+    // problem with that is that it's a lot more annoying to look into future - s.spunUp
+    public Task deferTransition(Transfer transfer) {
+        return Task.defer(() -> transition(transfer).orElse(Task.empty()))
+                .withResources(this);
+    }
+
     public void performTransition(TaskRunner runner, Transfer transfer) {
+        runner.sendTask(transition(transfer).orElse(Task.empty()));
+    }
+
+    public Optional<Task> transition(Transfer transfer) {
         Task task = Task.empty();
         State targetState = null;
         // state the task hypothetically would be at
@@ -69,15 +105,14 @@ public class Robot {
                         break;
                     case RIGHT_BUMPER_START:
                         targetState = State.PRIMED;
-                        // TODO lock
-                        task = Task.newWithOneshot(() -> launcher.setTargetRpm(Launcher.LAUNCH_RPM));
+                        task = Task.newWithOneshot(() -> launcher.setTargetRpm(launcher.fallbackRpm));
                         break;
                 }
                 break;
             case INTAKING:
                 if (transfer == Transfer.RIGHT_BUMPER_START) {
                     targetState = State.IDLE;
-                    task = Task.newWithOneshot(() -> intake.setPower(Intake.INTAKE_OFF));
+                    task = Task.newWithOneshot(() -> intake.setPower(Intake.INTAKE_HOLD));
                 }
                 break;
             case PRIMED:
@@ -88,9 +123,9 @@ public class Robot {
                         break;
                     case RIGHT_BUMPER_START:
                         targetState = State.SHOOTING;
-                        task = Task.newWithOneshot(() -> intake.setPower(Intake.INTAKE_OFF))
-                                .andThen(launcher.waitForSpinUp())
-                                .with(latch.open())
+                        task = launcher.waitForSpinUp()
+                                .andThen(Task.newWithOneshot(() -> intake.setPower(Intake.INTAKE_BARELYMOVE)))
+                                .andThen(latch.open())
                                 .andThen(Task.newWithOneshot(() -> intake.setPower(Intake.INTAKE_TRANSFER)));
                         break;
                 }
@@ -103,44 +138,84 @@ public class Robot {
                         intake.setPower(Intake.INTAKE_OFF);
                     }).with(latch.close());
                 }
+                break;
         }
         if (targetState != null) {
-            futureStates.offerLast(targetState);
             State finalTargetState = targetState;
-            runner.sendTask(task
-                    .andThen(Task.newWithOneshot(() -> {
-                        state = finalTargetState;
-                        futureStates.removeFirst();
-                    }))
-                    .withResources(this)
+            return Optional.of(
+                    Task.newWithOneshot(() -> futureStates.offerLast(finalTargetState))
+                            .andThen(task)
+                            .andThen(Task.newWithOneshot(() -> {
+                                state = finalTargetState;
+                                futureStates.removeFirst();
+                            }))
+                            .withResources(this)
             );
+        } else {
+            return Optional.empty();
         }
     }
+
+    public static double lateralMult = 1.99e-5;
+    public static double axialMult = 2.99e-5;
 
     private long cameraLastUpdate = -1;
 
     public void update() {
         launcher.update();
         camera.update();
+        imu.update();
 
-        if (notTransitioning() && !forceUnlock && state.spunUp) {
+        double rotationRate = imu.getRobotAngularVelocity(AngleUnit.RADIANS).zRotationRate;
+        double axialTps = Optional.ofNullable(par.getPositionAndVelocity().rawVelocity).orElse(0)
+                - rotationRate * TwoDeadWheelLocalizer.PARAMS.parYTicks;
+        /*
+        double lateralTps = Optional.ofNullable(perp.getPositionAndVelocity().rawVelocity).orElse(0)
+                - rotationRate * TwoDeadWheelLocalizer.PARAMS.perpXTicks;
+         */
+        double lateralTps = 0;
+
+        boolean shouldBeLocked = false;
+        boolean futureSpunUp = getNextState().map(s -> s.spunUp).orElse(false);
+        if (!cameraDisabled && (state.spunUp || futureSpunUp)) {
             Optional<Double> camHeading = camera.getBearing();
-            // make sure we're not putting stale camera angles into drivetrain
-            // because lockHeading is relative
-            if (cameraLastUpdate != camera.lastUpdate()) {
-                cameraLastUpdate = camera.lastUpdate();
-                if (camHeading.isPresent()) {
-                    drivetrain.lockHeading(camHeading.get());
-                } else {
-                    drivetrain.unlockHeading();
+            Optional<Double> camRange = camera.getRange();
+            if (!forceUnlock) {
+                shouldBeLocked = true;
+                // make sure we're not putting stale camera angles into drivetrain
+                // because lockHeading is relative
+                if (cameraLastUpdate != camera.lastUpdate()) {
+                    cameraLastUpdate = camera.lastUpdate();
+                    Optional<Double> adjustedHeading = camHeading.flatMap(h -> camRange.map(r -> {
+                        double x = Math.sin(h) * r;
+                        x -= lateralTps * r * lateralMult;
+
+                        double y = Math.cos(h) * r;
+                        y -= axialTps * r * axialMult;
+
+                        return Math.atan2(x, y);
+                    }));
+                    if (adjustedHeading.isPresent()) {
+                        drivetrain.lockHeading(camHeading.get());
+                        // TODO disabled because it screws with the control system too much
+                        double speedAdjClamp = 0.00;
+                        drivetrain.setHeadingBias(Math.min(speedAdjClamp, Math.max(-speedAdjClamp,
+                                adjustedHeading.get() - camHeading.get())));
+                    } else {
+                        drivetrain.unlockHeading();
+                    }
                 }
             }
-        } else {
-            drivetrain.unlockHeading();
+            if (futureSpunUp || !getNextState().isPresent()) {
+                camera.getRange().ifPresent(r -> {
+                    // TODO use proper range instead of hypot range
+                    r -= axialTps * r * axialMult;
+                    launcher.setTargetRpmByDistance(r);
+                });
+            }
         }
-
-        if (notTransitioning() && state.spunUp) {
-            camera.getRange().ifPresent(launcher::setTargetRpmByDistance);
+        if (!shouldBeLocked) {
+            drivetrain.unlockHeading();
         }
     }
 
@@ -158,5 +233,13 @@ public class Robot {
 
     public void toggleUnlockOverride() {
         forceUnlock = !forceUnlock;
+    }
+
+    public void enableCamera() {
+        cameraDisabled = false;
+    }
+
+    public void disableCamera() {
+        cameraDisabled = true;
     }
 }
