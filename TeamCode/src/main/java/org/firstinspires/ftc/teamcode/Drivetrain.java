@@ -164,13 +164,12 @@ public class Drivetrain {
         forward = orthoLerp.interpolateMagnitude(forward);
         lateral = orthoLerp.interpolateMagnitude(lateral);
         Optional<Double> headingLock = getHeadingLock();
+        rotate = rotateLerp.interpolateMagnitude(rotate);
         if (headingLock.isPresent()) {
             // center at headingLock, easier math
             double headingErr = normalizeHeading(getHeading() - headingLock.get());
-            rotate = -headingPid.update(0, fullSqrt(headingErr)) * 13 / voltageSensor.getVoltage();
+            rotate += -headingPid.update(0, fullSqrt(headingErr)) * 13 / voltageSensor.getVoltage();
             // rotate = -headingPid.update(0, headingErr) * 13 / voltageSensor.getVoltage();
-        } else {
-            rotate = rotateLerp.interpolateMagnitude(rotate);
         }
         double[] powers = {
                 forward + lateral + rotate,

@@ -108,7 +108,8 @@ public class Camera {
 
         List<AprilTagDetection> detections = processor.getDetections();
         for (AprilTagDetection detection : detections) {
-            if (detection.id == 24 || detection.id == 20) {
+            Optional<Integer> targetId = Color.getCurrentColor().map(c -> c == Color.RED ? 24 : 20);
+            if (targetId.map(id -> detection.id == id).orElse(detection.id == 24 || detection.id == 20)) {
                 double elevation = detection.ftcPose.elevation;
                 // correct for the camera pitch
                 double flattenMult = 1.0 / Math.cos(elevation) * Math.cos(elevation + CAMERA_PITCH);
@@ -116,28 +117,24 @@ public class Camera {
                 double y = detection.ftcPose.y * flattenMult;
                 double realX = detection.ftcPose.x + 180; // theoretical 112?
                 double adjustedBearing = Math.atan2(-realX, y * (1 / 0.89));
+                // what the yaw would be if the heading was 0
+                double realYaw = detection.ftcPose.yaw - detection.ftcPose.bearing;
                 // correct for ball size in yaw correction
                 // incredibly hacky
-                Lerp yawLerp = new Lerp(new double[][] {
-                    {-30, 30}, // far
-                    {40, 0}
+                Lerp yawLerp = new Lerp(new double[][]{
+                        {-30, 20}, // far
+                        {-15, 20},
+                        {-14, -30},
+                        {0, -30},
                 });
-                double yawCorrection = Color.getCurrentColor().map(c -> {
-                    switch (c) {
-                        case RED:
-                            return Math.toRadians(yawLerp.interpolate(Math.toDegrees(detection.ftcPose.yaw)));
-                        case BLUE:
-                            return -Math.toRadians(yawLerp.interpolate(Math.toDegrees(-detection.ftcPose.yaw)));
-                    }
-                    // ?????
-                    return 0.0;
-                }).orElse(0.0);
+                double yawCorrection = detection.id == 24 // red
+                        ? Math.toRadians(yawLerp.interpolate(Math.toDegrees(realYaw)))
+                        : -Math.toRadians(yawLerp.interpolate(Math.toDegrees(-realYaw)));
                 double toBackboardAngle = adjustedBearing
-                    + Math.toRadians(90)
-                    + detection.ftcPose.yaw
-                    + yawCorrection;
+                        + Math.toRadians(90)
+                        + realYaw
+                        + yawCorrection;
                 double toBackboardDist = 25.4 * 18.5 / Math.sqrt(2) / Math.cos(Math.PI / 4 - Math.abs(yawCorrection));
-                System.out.printf("%.2f %.2f\n", toBackboardDist / 25.4, Math.toDegrees(yawCorrection));
                 double backboardBearing = Math.atan2(
                         -(realX + Math.cos(toBackboardAngle) * toBackboardDist),
                         (y * (1 / 0.89) + Math.sin(toBackboardAngle) * toBackboardDist)

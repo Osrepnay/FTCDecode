@@ -64,7 +64,7 @@ public class FeedforwardTuner extends OpMode {
         telemetry.setAutoClear(false);
     }
 
-    private final double powerInc = 0.125;
+    private final double powerInc = 1.0 / 16;
     private final long accelMs = 2500;
     private final double sampleMs = 2000;
 
@@ -75,6 +75,7 @@ public class FeedforwardTuner extends OpMode {
     private long startingTicksCount = -1;
 
     private boolean stopped = false;
+
     @Override
     public void loop() {
         if (stopped) return;

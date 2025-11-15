@@ -511,11 +511,8 @@ public final class MecanumDrive {
     public TrajectoryActionBuilder actionBuilderColored(Pose2d beginPose) {
         boolean flip = Color.getCurrentColor().map(c -> c == Color.BLUE).orElse(false);
         PoseMap poseMap = pose -> flip
-                ? new Pose2dDual<>(pose.position.x.unaryMinus(), pose.position.y.unaryMinus(), pose.heading.plus(Math.PI))
+                ? new Pose2dDual<>(pose.position.x, pose.position.y.unaryMinus(), pose.heading.inverse())
                 : pose;
-        Pose2d newPose = flip
-                ? new Pose2d(new Vector2d(beginPose.position.x, -beginPose.position.y), beginPose.heading.inverse())
-                : beginPose;
         return new TrajectoryActionBuilder(
                 TurnAction::new,
                 FollowTrajectoryAction::new,

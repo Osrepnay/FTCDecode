@@ -59,8 +59,8 @@ public class YugePhart extends OpMode {
         dash = FtcDashboard.getInstance().getTelemetry();
         inputManager = new InputManager();
         inputManager.addTrigger(new Trigger(
-                Trigger.TriggerType.BEGIN,
-                () -> robot.drivetrain.isHeadingLocked(),
+                Trigger.TriggerType.END,
+                () -> robot.camera.getBearing().isPresent(),
                 () -> gamepad1.rumble(100)
         ));
 
@@ -108,15 +108,35 @@ public class YugePhart extends OpMode {
             robot.toggleUnlockOverride();
         }
 
+        if (gamepad2.dpad_down) {
+            robot.intake.setPower(-gamepad2.right_stick_y);
+        }
+        if (gamepad2.dpadDownWasReleased()) {
+            robot.intake.setPower(0);
+        }
+        if (gamepad2.left_bumper && gamepad2.rightBumperWasPressed()) {
+            if (robot.isCameraDisabled()) {
+                robot.enableCamera();
+            } else {
+                robot.disableCamera();
+            }
+        }
+        if (gamepad2.dpadLeftWasPressed()) {
+            robot.launcher.fallbackRpm -= 50;
+        } else if (gamepad2.dpadRightWasPressed()) {
+            robot.launcher.fallbackRpm += 50;
+        }
+
         telemetry.addData("state", robot.getState());
         telemetry.addData("rpm", robot.launcher.getCurrentRpm());
+        telemetry.addData("fallback rpm", robot.launcher.fallbackRpm);
         telemetry.addData("headingLock", robot.drivetrain.getHeadingLock().map(Math::toDegrees).orElse(0.0));
-        telemetry.addData("heading", robot.drivetrain.getHeading() * 180 / Math.PI);
+        telemetry.addData("heading", Math.toDegrees(robot.drivetrain.getHeading()));
         telemetry.addData("range", robot.camera.getRange());
+        telemetry.addData("camera is disabled?", robot.isCameraDisabled());
         dash.addData("rpm", robot.launcher.getCurrentRpm());
         dash.addData("target rpm", robot.launcher.getTargetRpm());
         dash.addData("headingLock", robot.drivetrain.getHeadingLock().orElse(0.0));
-        dash.addData("headingLockMinus", robot.drivetrain.getHeadingLock().orElse(0.0));
         dash.addData("heading", robot.drivetrain.getHeading());
         dash.addData("headingBias", robot.drivetrain.getHeadingBias());
         dash.addData("camera", robot.camera.getBearing().map(Math::toDegrees).orElse(0.0));

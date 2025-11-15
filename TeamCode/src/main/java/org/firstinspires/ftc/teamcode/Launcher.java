@@ -8,12 +8,9 @@ import com.qualcomm.robotcore.hardware.VoltageSensor;
 
 import org.firstinspires.ftc.teamcode.noncents.Lerp;
 import org.firstinspires.ftc.teamcode.noncents.PIDController;
-import org.firstinspires.ftc.teamcode.noncents.tasks.DelayTask;
 import org.firstinspires.ftc.teamcode.noncents.tasks.Task;
 
-import java.util.ArrayDeque;
 import java.util.Arrays;
-import java.util.Objects;
 
 @Config
 public class Launcher {
@@ -24,31 +21,27 @@ public class Launcher {
     private final VoltageSensor voltageSensor;
 
     // really should be private final but dashboard
-    public PIDController pid = new PIDController(0.004, 0.000001, 0)
+    public static PIDController pid = new PIDController(0.004, 0.000001, 0)
             .withIntegralRange(30);
     public static final Lerp rpmFeedforward = new Lerp(
             // 1620rpm
+            /*
             new double[]{0, 242, 448, 647, 861, 1030, 1198, 1363},
             new double[]{0, .2368, .3552, .4736, .5920, .7104, .8288, .9472}
-            /*
-            new double[]{0, 97, 227, 327, 444, 538, 654, 747, 861, 982, 1083, 1194, 1284, 1403, 1513, 1615},
-            new double[]{0, 0.1293, 0.1939, 0.2586, 0.3232, 0.3879, 0.4525, 0.5172, 0.5818, 0.6464, 0.7111, 0.7757,
-                    0.8404, 0.9050, 0.9697, 1.0343}
              */
-            // 1150rpm
-            /*
-            new double[]{0, 98, 248, 392, 547, 701, 845, 983, 1124},
-            new double[]{0, 0.1244, 0.2488, 0.3731, 0.4975, 0.6219, 0.7463, 0.8706, 0.9950}
-             */
+            new double[]{0, 102, 219, 306, 420, 510, 622, 708, 819, 930, 1018, 1125, 1201, 1321, 1433, 1514},
+            new double[]{0, .122, .183, .244, .305, .366, .427, .488, .549, .610, .671, .732, .793, .854, .915, .976}
     );
     public static final Lerp rpmDist = new Lerp(
             new double[][]{
-                    {2990, 1090},
+                    {2990, 1095},
                     {2640, 1045},
                     {2570, 1010},
                     {2100, 970},
                     {1900, 960},
-                    {1698, 890},
+                    {1698, 885},
+                    {1510, 868},
+                    {1300, 850},
                     {850, 835},
             }
     );

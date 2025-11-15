@@ -14,7 +14,6 @@ import com.qualcomm.robotcore.hardware.VoltageSensor;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.teamcode.noncents.CachingIMU;
 import org.firstinspires.ftc.teamcode.noncents.CachingVoltageSensor;
-import org.firstinspires.ftc.teamcode.noncents.tasks.DelayTask;
 import org.firstinspires.ftc.teamcode.noncents.tasks.Task;
 import org.firstinspires.ftc.teamcode.noncents.tasks.TaskRunner;
 import org.firstinspires.ftc.teamcode.rr.Localizer;
@@ -202,14 +201,14 @@ public class Robot {
                         drivetrain.setHeadingBias(Math.min(speedAdjClamp, Math.max(-speedAdjClamp,
                                 adjustedHeading.get() - camHeading.get())));
                     } else {
-                        drivetrain.unlockHeading();
+                        // drivetrain.unlockHeading();
                     }
                 }
             }
             if (futureSpunUp || !getNextState().isPresent()) {
                 camera.getRange().ifPresent(r -> {
                     // TODO use proper range instead of hypot range
-                    r -= axialTps * r * axialMult;
+                    // r -= axialTps * r * axialMult;
                     launcher.setTargetRpmByDistance(r);
                 });
             }
@@ -241,5 +240,9 @@ public class Robot {
 
     public void disableCamera() {
         cameraDisabled = true;
+    }
+
+    public boolean isCameraDisabled() {
+        return cameraDisabled;
     }
 }
