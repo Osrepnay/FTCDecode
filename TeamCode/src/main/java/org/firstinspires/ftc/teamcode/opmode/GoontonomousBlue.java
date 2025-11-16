@@ -53,7 +53,7 @@ public class GoontonomousBlue extends OpMode {
 
         Supplier<Task> waitRobot = () -> Task.newWithUpdate(() -> robot.notTransitioning());
         Supplier<Task> waitSpunUp =
-                () -> Task.newWithUpdate(() -> robot.launcher.isAtTargetRpm()).andThen(new DelayTask(1600));
+                () -> Task.newWithUpdate(() -> robot.launcher.isAtTargetRpm()).andThen(new DelayTask(1500));
         Supplier<Action> spinUp = () -> taskToAction(robot.deferTransition(Robot.Transfer.RIGHT_BUMPER_START)
                 .andThen(robot.deferTransition(Robot.Transfer.RIGHT_BUMPER_START))
         );
@@ -61,7 +61,7 @@ public class GoontonomousBlue extends OpMode {
                 .andThen(robot.deferTransition(Robot.Transfer.RIGHT_BUMPER_START).with(waitSpunUp.get()))
                 .andThen(robot.deferTransition(Robot.Transfer.RIGHT_BUMPER_END))
         );
-        Action path = drive.actionBuilderColored(drive.localizer.getPose())
+        Action path = drive.actionBuilder(drive.localizer.getPose())
                 // first set
                 .afterTime(0, taskToAction(Task.newWithOneshot(() -> robot.intake.setPower(Intake.INTAKE_HOLD))
                         .andThen(robot.deferTransition(Robot.Transfer.RIGHT_BUMPER_START))))
@@ -75,9 +75,9 @@ public class GoontonomousBlue extends OpMode {
                 .splineToSplineHeading(new Pose2d(-14.3, -30, Math.toRadians(-90)), Math.toRadians(-90))
                 .strafeToConstantHeading(new Vector2d(-14.3, -48))
                 .setTangent(0)
-                .splineToConstantHeading(new Vector2d(-1, -59), Math.toRadians(-90))
-                .afterTime(1, spinUp.get())
-                .waitSeconds(2)
+                .splineToLinearHeading(new Pose2d(-1, -59, Math.toRadians(-93)), Math.toRadians(-90))
+                .afterTime(0, spinUp.get())
+                .waitSeconds(0.5)
                 .strafeToLinearHeading(new Vector2d(-23, -23), Math.toRadians(-135))
                 .stopAndAdd(shoot.get())
 

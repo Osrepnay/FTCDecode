@@ -59,6 +59,7 @@ public class Robot {
     // TODO this only does things on rpm control for now
     // rememer to integrate when fix the drivetrain update weirdness
     private boolean cameraDisabled = false;
+    private boolean slowShoot = false;
 
     public Robot(HardwareMap hardwareMap) {
         VoltageSensor voltageSensor = new CachingVoltageSensor(hardwareMap.voltageSensor.iterator().next());
@@ -244,5 +245,13 @@ public class Robot {
 
     public boolean isCameraDisabled() {
         return cameraDisabled;
+    }
+
+    public void setSlowShoot(boolean slowShoot) {
+        this.slowShoot = slowShoot;
+    }
+
+    public boolean isSlowShoot() {
+        return slowShoot;
     }
 }
