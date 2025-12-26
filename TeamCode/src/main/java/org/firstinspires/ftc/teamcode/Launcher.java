@@ -25,12 +25,13 @@ public class Launcher {
             .withIntegralRange(30);
     public static final Lerp rpmFeedforward = new Lerp(
             // 1620rpm
-            /*
-            new double[]{0, 242, 448, 647, 861, 1030, 1198, 1363},
-            new double[]{0, .2368, .3552, .4736, .5920, .7104, .8288, .9472}
-             */
+            // double motor
             new double[]{0, 102, 219, 306, 420, 510, 622, 708, 819, 930, 1018, 1125, 1201, 1321, 1433, 1514},
             new double[]{0, .122, .183, .244, .305, .366, .427, .488, .549, .610, .671, .732, .793, .854, .915, .976}
+            /*
+            new double[]{0, 105, 298, 661, 885},
+            new double[]{0, 0.3, 0.4798, 0.78, 0.96}
+             */
     );
     public static final Lerp rpmDist = new Lerp(
             new double[][]{
@@ -46,15 +47,9 @@ public class Launcher {
             }
     );
 
-    public double fallbackRpm = 1000;
+    public double fallbackRpm = 600;
     public double targetRpm = 0;
 
-    /*
-    // synced
-    private final ArrayDeque<Long> tickTimes = new ArrayDeque<>();
-    private final ArrayDeque<Long> tickCounts = new ArrayDeque<>();
-    private double lastPower = 0;
-     */
     private double currentRpm = 0;
 
     public Launcher(DcMotorEx[] motors, VoltageSensor voltageSensor) {
@@ -110,28 +105,6 @@ public class Launcher {
             return 0;
         }
 
-        /*
-        long time = System.currentTimeMillis();
-        long currTicks = motors[1].getCurrentPosition();
-        long deltaMs = tickTimes.isEmpty() ? Long.MAX_VALUE : time - tickTimes.getLast();
-
-        tickTimes.offerLast(time);
-        tickCounts.offerLast(currTicks);
-
-        long minimumMs = time - RPM_SAMPLING_MS;
-        // silence the warning, should really never be null anyways
-        while (Objects.requireNonNull(tickTimes.getFirst()) < minimumMs) {
-            tickTimes.removeFirst();
-            tickCounts.removeFirst();
-        }
-
-        long totalTicks = tickCounts.getLast() - tickCounts.getFirst();
-        long totalTime = tickTimes.getLast() - tickTimes.getFirst();
-        if (totalTime == 0) totalTime = 1;
-        double tps = (double) totalTicks / totalTime * 1000;
-        double rpm = tps / 103.8 * 60;
-        currentRpm = rpm;
-         */
         currentRpm = motors[1].getVelocity() / 103.8 * 60;
 
         double newPower = (rpmFeedforward.interpolateMagnitude(targetRpm) + pid.update(targetRpm, getCurrentRpm()))

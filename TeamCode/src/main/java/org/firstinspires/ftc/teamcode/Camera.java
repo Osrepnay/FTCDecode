@@ -122,8 +122,8 @@ public class Camera {
                 // correct for ball size in yaw correction
                 // incredibly hacky
                 Lerp yawLerp = new Lerp(new double[][]{
-                        {-30, 20}, // far
-                        {-15, 20},
+                        {-30, -55}, // far
+                        {-15, -55},
                         {-14, -30},
                         {0, -30},
                 });
