@@ -1,25 +1,30 @@
 package org.firstinspires.ftc.teamcode;
 
 import com.acmerobotics.dashboard.config.Config;
-import com.qualcomm.hardware.limelightvision.LLResult;
-import com.qualcomm.hardware.limelightvision.Limelight3A;
+import com.acmerobotics.roadrunner.Pose2d;
+import com.acmerobotics.roadrunner.ftc.Encoder;
+import com.acmerobotics.roadrunner.ftc.OverflowEncoder;
+import com.acmerobotics.roadrunner.ftc.RawEncoder;
+import com.qualcomm.robotcore.hardware.DcMotorEx;
+import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.HardwareMap;
+import com.qualcomm.robotcore.hardware.IMU;
 import com.qualcomm.robotcore.hardware.VoltageSensor;
 
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
-import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
-import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
-import org.firstinspires.ftc.robotcore.external.navigation.Pose3D;
-import org.firstinspires.ftc.robotcore.external.navigation.UnnormalizedAngleUnit;
+import org.firstinspires.ftc.teamcode.noncents.CachingIMU;
 import org.firstinspires.ftc.teamcode.noncents.CachingVoltageSensor;
 import org.firstinspires.ftc.teamcode.noncents.tasks.Task;
 import org.firstinspires.ftc.teamcode.noncents.tasks.TaskRunner;
+import org.firstinspires.ftc.teamcode.rr.Localizer;
+import org.firstinspires.ftc.teamcode.rr.MecanumDrive;
+import org.firstinspires.ftc.teamcode.rr.TwoDeadWheelLocalizer;
 
 import java.util.ArrayDeque;
 import java.util.Optional;
 
 @Config
-public class Robot {
+public class RobotOld {
     public enum State {
         IDLE(false),
         INTAKING(false),
@@ -36,50 +41,42 @@ public class Robot {
     public enum Transfer {
         LEFT_BUMPER_START,
         RIGHT_BUMPER_START,
-        LEFT_BUMPER_END,
         RIGHT_BUMPER_END
     }
 
-    public long LL_INTERVAL_MS = 100;
-
+    public final CachingIMU imu;
     public final Drivetrain drivetrain;
     public final Intake intake;
     public final Latch latch;
     public final Launcher launcher;
-    public final GoBildaPinpointDriver pinpoint;
-    public final Limelight3A limelight;
+    public final Camera camera;
+    public final Localizer localizer;
+    public final Encoder par, perp;
 
     private State state = State.IDLE;
     private final ArrayDeque<State> futureStates = new ArrayDeque<>();
     private boolean forceUnlock = false;
     // TODO this only does things on rpm control for now
     // rememer to integrate when fix the drivetrain update weirdness
-    private boolean stopAutoRpm = false;
+    private boolean cameraDisabled = false;
     private boolean slowShoot = false;
-    private double goalDist = -1;
 
-    public Robot(HardwareMap hardwareMap) {
+    public RobotOld(HardwareMap hardwareMap) {
         VoltageSensor voltageSensor = new CachingVoltageSensor(hardwareMap.voltageSensor.iterator().next());
+        imu = new CachingIMU(hardwareMap.get(IMU.class, "imu"));
         drivetrain = new Drivetrain(hardwareMap, voltageSensor);
         intake = new Intake(hardwareMap);
         latch = new Latch(hardwareMap);
         launcher = new Launcher(hardwareMap, voltageSensor);
-        pinpoint = hardwareMap.get(GoBildaPinpointDriver.class, "pinpoint");
-        pinpoint.setOffsets(-134.263, 49, DistanceUnit.MM);
-        pinpoint.setEncoderResolution(GoBildaPinpointDriver.GoBildaOdometryPods.goBILDA_4_BAR_POD);
-        pinpoint.setEncoderDirections(
-                GoBildaPinpointDriver.EncoderDirection.REVERSED,
-                GoBildaPinpointDriver.EncoderDirection.REVERSED
-        );
-        pinpoint.setPosition(new Pose2D(DistanceUnit.MM, 320, -1645, AngleUnit.DEGREES, 90));
-        limelight = hardwareMap.get(Limelight3A.class, "limelight");
-        limelight.pipelineSwitch(0);
+        camera = new Camera(hardwareMap);
+        localizer = new TwoDeadWheelLocalizer(hardwareMap, imu, MecanumDrive.PARAMS.inPerTick, new Pose2d(0, 0, 0));
+        par = new OverflowEncoder(new RawEncoder(hardwareMap.get(DcMotorEx.class, "wheelBackLeft")));
+        perp = new OverflowEncoder(new RawEncoder(hardwareMap.get(DcMotorEx.class, "wheelFrontRight")));
+        par.setDirection(DcMotorSimple.Direction.REVERSE);
     }
 
-    public Task doInit() {
-        return latch.doClose()
-                .with(launcher.doInit())
-                .with(Task.newWithOneshot(limelight::start));
+    public Task init() {
+        return latch.doClose();
     }
 
     // TODO this whole thing is kinda a mess
@@ -94,9 +91,6 @@ public class Robot {
         runner.sendTask(transition(transfer).orElse(Task.empty()));
     }
 
-    // TODO:
-    // no transition queue. transition method sets task immediately upon task run. auto-style transition chaining
-    // handled some other way?
     public Optional<Task> transition(Transfer transfer) {
         Task task = Task.empty();
         State targetState = null;
@@ -116,7 +110,7 @@ public class Robot {
                 }
                 break;
             case INTAKING:
-                if (transfer == Transfer.LEFT_BUMPER_END) {
+                if (transfer == Transfer.RIGHT_BUMPER_START) {
                     targetState = State.IDLE;
                     task = Task.newWithOneshot(() -> intake.setPower(Intake.INTAKE_HOLD));
                 }
@@ -130,7 +124,7 @@ public class Robot {
                     case RIGHT_BUMPER_START:
                         targetState = State.SHOOTING;
                         task = launcher.waitForSpinUp()
-                                .andThen(Task.newWithOneshot(() -> intake.setPower(Intake.INTAKE_OFF)))
+                                .andThen(Task.newWithOneshot(() -> intake.setPower(Intake.INTAKE_BARELYMOVE)))
                                 .andThen(latch.doOpen())
                                 .andThen(Task.newWithOneshot(() -> intake.setPower(Intake.INTAKE_TRANSFER)));
                         break;
@@ -162,54 +156,69 @@ public class Robot {
         }
     }
 
-    private double moveCloser(double start, double end, double proportion) {
-        return start + (end - start) * proportion;
-    }
+    public static double lateralMult = 1.99e-5;
+    public static double axialMult = 2.99e-5;
 
-    private long lastLLUpdate = 0;
+    private long cameraLastUpdate = -1;
 
     public void update() {
-        long time = System.currentTimeMillis();
-
         launcher.update();
-        pinpoint.update();
-        double heading = pinpoint.getHeading(AngleUnit.RADIANS);
-        Pose2D pinpointPos = pinpoint.getPosition();
-        drivetrain.update(heading - Math.PI / 2);
+        camera.update();
+        imu.update();
 
-        if (Math.sqrt(Math.pow(pinpoint.getVelX(DistanceUnit.MM), 2) + Math.pow(pinpoint.getVelY(DistanceUnit.MM), 2)) < 40
-                && pinpoint.getHeadingVelocity(UnnormalizedAngleUnit.DEGREES) < 2) {
-            limelight.updateRobotOrientation(Math.toDegrees(heading) - 90);
-            LLResult result = limelight.getLatestResult();
-            if (time - lastLLUpdate > LL_INTERVAL_MS && result != null && result.isValid()) {
-                Pose3D botpose = result.getBotpose_MT2();
-                if (botpose.getPosition().x != 0 || botpose.getPosition().y != 0) {
-                    System.out.println(botpose);
-                    Pose2D newPos = new Pose2D(
-                            DistanceUnit.MM,
-                            moveCloser(pinpointPos.getX(DistanceUnit.MM), botpose.getPosition().x * 1000, 0.3),
-                            moveCloser(pinpointPos.getY(DistanceUnit.MM), botpose.getPosition().y * 1000, 0.3),
-                            AngleUnit.RADIANS,
-                            pinpointPos.getHeading(AngleUnit.RADIANS)
-                    );
-                    pinpoint.setPosition(newPos);
+        double rotationRate = imu.getRobotAngularVelocity(AngleUnit.RADIANS).zRotationRate;
+        double axialTps = Optional.ofNullable(par.getPositionAndVelocity().rawVelocity).orElse(0)
+                - rotationRate * TwoDeadWheelLocalizer.PARAMS.parYTicks;
+        /*
+        double lateralTps = Optional.ofNullable(perp.getPositionAndVelocity().rawVelocity).orElse(0)
+                - rotationRate * TwoDeadWheelLocalizer.PARAMS.perpXTicks;
+         */
+        double lateralTps = 0;
+
+        /*
+        boolean shouldBeLocked = false;
+        boolean futureSpunUp = getNextState().map(s -> s.spunUp).orElse(false);
+        if (!cameraDisabled && (state.spunUp || futureSpunUp)) {
+            Optional<Double> camHeading = camera.getBearing();
+            Optional<Double> camRange = camera.getRange();
+            if (!forceUnlock) {
+                shouldBeLocked = true;
+                // make sure we're not putting stale camera angles into drivetrain
+                // because lockHeading is relative
+                if (cameraLastUpdate != camera.lastUpdate()) {
+                    cameraLastUpdate = camera.lastUpdate();
+                    Optional<Double> adjustedHeading = camHeading.flatMap(h -> camRange.map(r -> {
+                        double x = Math.sin(h) * r;
+                        x -= lateralTps * r * lateralMult;
+
+                        double y = Math.cos(h) * r;
+                        y -= axialTps * r * axialMult;
+
+                        return Math.atan2(x, y);
+                    }));
+                    if (adjustedHeading.isPresent()) {
+                        drivetrain.lockHeading(camHeading.get());
+                        // TODO disabled because it screws with the control system too much
+                        double speedAdjClamp = 0.00;
+                        drivetrain.setHeadingBias(Math.min(speedAdjClamp, Math.max(-speedAdjClamp,
+                                adjustedHeading.get() - camHeading.get())));
+                    } else {
+                        // drivetrain.unlockHeading();
+                    }
                 }
             }
+            if (futureSpunUp || !getNextState().isPresent()) {
+                camera.getRange().ifPresent(r -> {
+                    // TODO use proper range instead of hypot range
+                    // r -= axialTps * r * axialMult;
+                    launcher.setTargetRpmByDistance(r);
+                });
+            }
         }
-
-        double targetX = (-72 + 2.5) * 25.4;
-        double targetY = (-72 + 2.5) * 25.4;
-        double lockRad = Math.atan2(
-                targetY - pinpoint.getPosY(DistanceUnit.MM),
-                targetX - pinpoint.getPosX(DistanceUnit.MM)
-        );
-        launcher.setTurretRadians(lockRad - (heading + Math.PI));
-
-        goalDist = Math.sqrt(Math.pow(targetY - pinpoint.getPosY(DistanceUnit.MM), 2) +
-                Math.pow(targetX - pinpoint.getPosX(DistanceUnit.MM), 2));
-        if (!stopAutoRpm && state.spunUp && getNextState().map(s -> s.spunUp).orElse(true)) {
-            launcher.setTargetRpmByDistance(goalDist);
+        if (!shouldBeLocked) {
+            drivetrain.unlockHeading();
         }
+         */
     }
 
     public State getState() {
@@ -229,15 +238,15 @@ public class Robot {
     }
 
     public void enableCamera() {
-        stopAutoRpm = false;
+        cameraDisabled = false;
     }
 
     public void disableCamera() {
-        stopAutoRpm = true;
+        cameraDisabled = true;
     }
 
-    public boolean isAutoRpmStopped() {
-        return stopAutoRpm;
+    public boolean isCameraDisabled() {
+        return cameraDisabled;
     }
 
     public void setSlowShoot(boolean slowShoot) {
@@ -246,9 +255,5 @@ public class Robot {
 
     public boolean isSlowShoot() {
         return slowShoot;
-    }
-
-    public double getGoalDist() {
-        return goalDist;
     }
 }

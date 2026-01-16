@@ -31,9 +31,9 @@ package org.firstinspires.ftc.teamcode.opmode;
 
 import com.acmerobotics.dashboard.FtcDashboard;
 import com.acmerobotics.dashboard.config.Config;
-import com.qualcomm.hardware.dfrobot.HuskyLens;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
+import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.VoltageSensor;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
@@ -50,6 +50,8 @@ public class Phes extends OpMode {
     private Launcher launcher;
     private Latch latch;
     private Intake intake;
+    private DcMotorEx turret;
+    private Drivetrain dt;
     private Telemetry dash;
     private VoltageSensor voltageSensor;
 
@@ -62,35 +64,55 @@ public class Phes extends OpMode {
         launcher = new Launcher(hardwareMap, voltageSensor);
         latch = new Latch(hardwareMap);
         intake = new Intake(hardwareMap);
+        turret = hardwareMap.get(DcMotorEx.class, "turret");
+        dt = new Drivetrain(hardwareMap, voltageSensor);
         dash = FtcDashboard.getInstance().getTelemetry();
+
         runner = new TaskRunner();
+        runner.sendTask(latch.doClose());
     }
 
-    public static double rpmTarget = 0;
+    private boolean intaking = false;
+    private boolean latched = true;
+    private double launcherPower = 0;
+    private double hoodPos = 0;
 
     @Override
     public void loop() {
-        double power = launcher.update();
+        if (gamepad1.squareWasPressed()) {
+            if (intaking) {
+                intake.setPower(Intake.INTAKE_OFF);
+            } else {
+                intake.setPower(Intake.INTAKE_ON);
+            }
+            intaking = !intaking;
+        }
         if (gamepad1.triangleWasPressed()) {
-            runner.sendTask(latch.close());
+            if (latched) {
+                runner.sendTask(latch.doOpen());
+            } else {
+                runner.sendTask(latch.doClose());
+            }
+            latched = !latched;
         }
-        if (gamepad1.circleWasPressed()) {
-            runner.sendTask(latch.open());
+        if (gamepad1.dpadUpWasPressed()) {
+            launcher.setRawPower(launcherPower += 0.1);
         }
-        intake.setPower(-gamepad1.left_stick_y);
+        if (gamepad1.dpadDownWasPressed()) {
+            launcher.setRawPower(launcherPower -= 0.1);
+        }
+        if (gamepad1.dpadRightWasPressed()) {
+            hoodPos += 0.1;
+        }
         if (gamepad1.dpadLeftWasPressed()) {
-            rpmTarget -= 50;
-        } else if (gamepad1.dpadRightWasPressed()) {
-            rpmTarget += 50;
+            hoodPos -= 0.1;
         }
-        launcher.setTargetRpm(rpmTarget);
-        // launcher.setTargetRpm(-gamepad1.right_stick_y * Launcher.LAUNCH_RPM);
-        // launcher.setRawPower(-gamepad1.right_stick_y);
-        dash.addData("rpm", launcher.getCurrentRpm());
-        dash.addData("target rpm", launcher.getTargetRpm());
-        telemetry.addData("target rpm", launcher.getTargetRpm());
-        dash.addData("power", power);
+        hoodPos = Math.min(1, Math.max(0, hoodPos));
+        runner.sendTask(launcher.doSetHood(hoodPos));
+        dt.driveBotCentric(-gamepad1.left_stick_y, gamepad1.left_stick_x, gamepad1.right_stick_x);
+
         dash.update();
         runner.update();
+        telemetry.addData("turret", turret.getCurrentPosition());
     }
 }

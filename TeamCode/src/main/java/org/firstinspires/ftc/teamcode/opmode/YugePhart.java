@@ -35,10 +35,11 @@ import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
+import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
+import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.teamcode.Color;
 import org.firstinspires.ftc.teamcode.Robot;
 import org.firstinspires.ftc.teamcode.noncents.input.InputManager;
-import org.firstinspires.ftc.teamcode.noncents.input.Trigger;
 import org.firstinspires.ftc.teamcode.noncents.tasks.TaskRunner;
 
 import java.util.ArrayDeque;
@@ -58,11 +59,6 @@ public class YugePhart extends OpMode {
         runner = new TaskRunner();
         dash = FtcDashboard.getInstance().getTelemetry();
         inputManager = new InputManager();
-        inputManager.addTrigger(new Trigger(
-                Trigger.TriggerType.END,
-                () -> robot.camera.getBearing().isPresent(),
-                () -> gamepad1.rumble(100)
-        ));
 
         hubs = hardwareMap.getAll(LynxModule.class);
         hubs.forEach(h -> h.setBulkCachingMode(LynxModule.BulkCachingMode.MANUAL));
@@ -81,7 +77,7 @@ public class YugePhart extends OpMode {
     public void loop() {
         if (first) {
             first = false;
-            runner.sendTask(robot.init());
+            runner.sendTask(robot.doInit());
         }
 
         hubs.forEach(LynxModule::clearBulkCache);
@@ -101,6 +97,9 @@ public class YugePhart extends OpMode {
         if (gamepad1.leftBumperWasPressed()) {
             robot.performTransition(runner, Robot.Transfer.LEFT_BUMPER_START);
         }
+        if (gamepad1.leftBumperWasReleased()) {
+            robot.performTransition(runner, Robot.Transfer.LEFT_BUMPER_END);
+        }
         if (gamepad1.rightBumperWasReleased()) {
             robot.performTransition(runner, Robot.Transfer.RIGHT_BUMPER_END);
         }
@@ -115,7 +114,7 @@ public class YugePhart extends OpMode {
             robot.intake.setPower(0);
         }
         if (gamepad2.left_bumper && gamepad2.rightBumperWasPressed()) {
-            if (robot.isCameraDisabled()) {
+            if (robot.isAutoRpmStopped()) {
                 robot.enableCamera();
             } else {
                 robot.disableCamera();
@@ -126,25 +125,31 @@ public class YugePhart extends OpMode {
         } else if (gamepad2.dpadRightWasPressed()) {
             robot.launcher.fallbackRpm += 50;
         }
+        if (gamepad2.dpadDownWasPressed()) {
+            runner.sendTask(robot.launcher.doSetHood(robot.launcher.getHoodPos() - 0.1));
+        } else if (gamepad2.dpadUpWasPressed()) {
+            runner.sendTask(robot.launcher.doSetHood(robot.launcher.getHoodPos() + 0.1));
+        }
 
         telemetry.addData("state", robot.getState());
         telemetry.addData("rpm", robot.launcher.getCurrentRpm());
+        telemetry.addData("target rpm", robot.launcher.getTargetRpm());
         telemetry.addData("fallback rpm", robot.launcher.fallbackRpm);
-        telemetry.addData("headingLock", robot.drivetrain.getHeadingLock().map(Math::toDegrees).orElse(0.0));
+        telemetry.addData("hood", robot.launcher.getHoodPos());
+        telemetry.addData("dist", robot.getGoalDist());
         telemetry.addData("heading", Math.toDegrees(robot.drivetrain.getHeading()));
-        telemetry.addData("range", robot.camera.getRange());
-        telemetry.addData("camera is disabled?", robot.isCameraDisabled());
+        telemetry.addData("camera is disabled?", robot.isAutoRpmStopped());
+        telemetry.addData("pinpoint x", robot.pinpoint.getPosition().getX(DistanceUnit.MM));
+        telemetry.addData("pinpoint y", robot.pinpoint.getPosition().getY(DistanceUnit.MM));
+        telemetry.addData("pinpoint deg", robot.pinpoint.getPosition().getHeading(AngleUnit.DEGREES));
+        telemetry.addData("fallback rpm", robot.launcher.fallbackRpm);
         dash.addData("rpm", robot.launcher.getCurrentRpm());
         dash.addData("target rpm", robot.launcher.getTargetRpm());
-        dash.addData("headingLock", robot.drivetrain.getHeadingLock().orElse(0.0));
         dash.addData("heading", robot.drivetrain.getHeading());
-        dash.addData("headingBias", robot.drivetrain.getHeadingBias());
-        dash.addData("camera", robot.camera.getBearing().map(Math::toDegrees).orElse(0.0));
-        dash.addData("raw", robot.drivetrain.getRawHeading());
 
         dash.update();
         runner.update();
-        robot.drivetrain.driveBotCentric(-gamepad1.left_stick_y, gamepad1.left_stick_x, gamepad1.right_stick_x);
+        robot.drivetrain.driveFieldCentric(-gamepad1.left_stick_y, gamepad1.left_stick_x, gamepad1.right_stick_x);
         robot.update();
         inputManager.update();
     }

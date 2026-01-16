@@ -20,7 +20,7 @@ public class ServoWrapper {
         this.moveDelay = moveDelay;
     }
 
-    public Task setPosition(double pos) {
+    public Task doSetPosition(double pos) {
         return Task.empty()
                 .withOneshot(() -> {
                     doneMoving = false;

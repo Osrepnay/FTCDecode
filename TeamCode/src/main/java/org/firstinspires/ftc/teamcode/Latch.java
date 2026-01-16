@@ -8,36 +8,27 @@ import org.firstinspires.ftc.teamcode.noncents.ServoWrapper;
 import org.firstinspires.ftc.teamcode.noncents.tasks.Task;
 
 public class Latch {
-    public static final double LATCH_LEFT_CLOSE = 0.21;
-    public static final double LATCH_LEFT_OPEN = 0.34;
-    public static final double LATCH_RIGHT_CLOSE = 0.225;
-    public static final double LATCH_RIGHT_OPEN = 0.1;
+    public static final double LATCH_LEFT_CLOSE = 0.8;
+    public static final double LATCH_LEFT_OPEN = 0.89;
 
-    public static final long LATCH_DELAY = 1300;
+    public static final long LATCH_DELAY = 2000;
 
-    private final ServoWrapper latchLeft, latchRight;
+    private final ServoWrapper latchLeft;
 
-    public Latch(ServoImplEx latchLeft, ServoImplEx latchRight) {
+    public Latch(ServoImplEx latchLeft) {
         latchLeft.setPwmRange(new PwmControl.PwmRange(500, 2500));
-        latchRight.setPwmRange(new PwmControl.PwmRange(500, 2500));
         this.latchLeft = new ServoWrapper(latchLeft, LATCH_DELAY);
-        this.latchRight = new ServoWrapper(latchRight, LATCH_DELAY);
     }
 
     public Latch(HardwareMap hardwareMap) {
-        this(
-                hardwareMap.get(ServoImplEx.class, "latchLeft"),
-                hardwareMap.get(ServoImplEx.class, "latchRight")
-        );
+        this(hardwareMap.get(ServoImplEx.class, "latchLeft"));
     }
 
-    public Task close() {
-        return latchLeft.setPosition(LATCH_LEFT_CLOSE)
-                .with(latchRight.setPosition(LATCH_RIGHT_CLOSE));
+    public Task doClose() {
+        return latchLeft.doSetPosition(LATCH_LEFT_CLOSE);
     }
 
-    public Task open() {
-        return latchLeft.setPosition(LATCH_LEFT_OPEN)
-                .with(latchRight.setPosition(LATCH_RIGHT_OPEN));
+    public Task doOpen() {
+        return latchLeft.doSetPosition(LATCH_LEFT_OPEN);
     }
 }

@@ -12,7 +12,7 @@ import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 
 import org.firstinspires.ftc.teamcode.Color;
 import org.firstinspires.ftc.teamcode.Intake;
-import org.firstinspires.ftc.teamcode.Robot;
+import org.firstinspires.ftc.teamcode.RobotOld;
 import org.firstinspires.ftc.teamcode.noncents.input.InputManager;
 import org.firstinspires.ftc.teamcode.noncents.tasks.DelayTask;
 import org.firstinspires.ftc.teamcode.noncents.tasks.Task;
@@ -26,7 +26,7 @@ import java.util.function.Supplier;
 @Autonomous(preselectTeleOp = "YugePhart")
 public class Goontonomous extends OpMode {
 
-    private Robot robot;
+    private RobotOld robot;
     private TaskRunner runner;
     private InputManager inputManager;
     private List<LynxModule> hubs;
@@ -34,7 +34,7 @@ public class Goontonomous extends OpMode {
 
     @Override
     public void init() {
-        robot = new Robot(hardwareMap);
+        robot = new RobotOld(hardwareMap);
         robot.disableCamera();
         robot.launcher.fallbackRpm = 855;
         runner = new TaskRunner();
@@ -54,23 +54,23 @@ public class Goontonomous extends OpMode {
         Supplier<Task> waitRobot = () -> Task.newWithUpdate(() -> robot.notTransitioning());
         Supplier<Task> waitSpunUp =
                 () -> Task.newWithUpdate(() -> robot.launcher.isAtTargetRpm()).andThen(new DelayTask(1500));
-        Supplier<Action> spinUp = () -> taskToAction(robot.deferTransition(Robot.Transfer.RIGHT_BUMPER_START)
-                .andThen(robot.deferTransition(Robot.Transfer.RIGHT_BUMPER_START))
+        Supplier<Action> spinUp = () -> taskToAction(robot.deferTransition(RobotOld.Transfer.RIGHT_BUMPER_START)
+                .andThen(robot.deferTransition(RobotOld.Transfer.RIGHT_BUMPER_START))
         );
         Supplier<Action> shoot = () -> taskToAction(waitRobot.get()
-                .andThen(robot.deferTransition(Robot.Transfer.RIGHT_BUMPER_START).with(waitSpunUp.get()))
-                .andThen(robot.deferTransition(Robot.Transfer.RIGHT_BUMPER_END))
+                .andThen(robot.deferTransition(RobotOld.Transfer.RIGHT_BUMPER_START).with(waitSpunUp.get()))
+                .andThen(robot.deferTransition(RobotOld.Transfer.RIGHT_BUMPER_END))
         );
         Action path = drive.actionBuilder(drive.localizer.getPose())
                 // first set
                 .afterTime(0, taskToAction(Task.newWithOneshot(() -> robot.intake.setPower(Intake.INTAKE_HOLD))
-                        .andThen(robot.deferTransition(Robot.Transfer.RIGHT_BUMPER_START))))
+                        .andThen(robot.deferTransition(RobotOld.Transfer.RIGHT_BUMPER_START))))
                 .waitSeconds(0.5)
                 .lineToX(-23)
                 .stopAndAdd(shoot.get())
 
                 // pickup, score second set
-                .afterTime(0.4, taskToAction(robot.deferTransition(Robot.Transfer.LEFT_BUMPER_START)))
+                .afterTime(0.4, taskToAction(robot.deferTransition(RobotOld.Transfer.LEFT_BUMPER_START)))
                 .setTangent(Math.toRadians(0))
                 .splineToSplineHeading(new Pose2d(-14.3, 30, Math.toRadians(90)), Math.toRadians(90))
                 .strafeToConstantHeading(new Vector2d(-14.3, 48))
@@ -82,7 +82,7 @@ public class Goontonomous extends OpMode {
                 .stopAndAdd(shoot.get())
 
                 // third set
-                .afterTime(1.5, taskToAction(robot.deferTransition(Robot.Transfer.LEFT_BUMPER_START)))
+                .afterTime(1.5, taskToAction(robot.deferTransition(RobotOld.Transfer.LEFT_BUMPER_START)))
                 .setTangent(Math.toRadians(-30))
                 .splineToSplineHeading(new Pose2d(4, 17, Math.toRadians(30)), Math.toRadians(30))
                 .splineToSplineHeading(new Pose2d(12, 30, Math.toRadians(90)), Math.toRadians(90))
@@ -92,7 +92,7 @@ public class Goontonomous extends OpMode {
                 .stopAndAdd(shoot.get())
 
                 // fourth/final set
-                .afterTime(1.6, taskToAction(robot.deferTransition(Robot.Transfer.LEFT_BUMPER_START)))
+                .afterTime(1.6, taskToAction(robot.deferTransition(RobotOld.Transfer.LEFT_BUMPER_START)))
                 .setTangent(Math.toRadians(0))
                 .splineToSplineHeading(new Pose2d(12, 17, Math.toRadians(10)), Math.toRadians(8))
                 .splineToSplineHeading(new Pose2d(36, 30, Math.toRadians(90)), Math.toRadians(90))

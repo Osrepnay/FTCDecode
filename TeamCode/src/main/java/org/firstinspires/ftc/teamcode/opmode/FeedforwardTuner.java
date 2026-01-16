@@ -83,7 +83,7 @@ public class FeedforwardTuner extends OpMode {
         long time = System.currentTimeMillis();
         // most of the time we're busy-looping so this technically makes it slower but
         // it doesnt change anything except maybe make it slightly less precise
-        long currentTicksCount = motors[1].getCurrentPosition();
+        long currentTicksCount = motors[0].getCurrentPosition();
         double voltage = voltageSensor.getVoltage();
         if (lastChange == -1 || time - lastChange > accelMs + sampleMs) {
             lastChange = time;
@@ -92,7 +92,7 @@ public class FeedforwardTuner extends OpMode {
             }
             double tps = (double) (currentTicksCount - startingTicksCount) / sampleMs * 1000;
             startingTicksCount = -1;
-            double rpm = tps / 103.8 * 60;
+            double rpm = tps * 3;
             // reverse of how its normally done (we are going from voltage-aware to voltage-blind powers)
             double adjustedPower = currPower / 13 * voltage;
             telemetry.addLine(String.format(Locale.ROOT, "%.4f %.4f", rpm, adjustedPower));

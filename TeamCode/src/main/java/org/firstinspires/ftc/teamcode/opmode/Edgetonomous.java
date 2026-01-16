@@ -11,7 +11,7 @@ import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 
 import org.firstinspires.ftc.teamcode.Color;
-import org.firstinspires.ftc.teamcode.Robot;
+import org.firstinspires.ftc.teamcode.RobotOld;
 import org.firstinspires.ftc.teamcode.noncents.input.InputManager;
 import org.firstinspires.ftc.teamcode.noncents.tasks.DelayTask;
 import org.firstinspires.ftc.teamcode.noncents.tasks.Task;
@@ -25,7 +25,7 @@ import java.util.function.Supplier;
 @Autonomous(preselectTeleOp = "YugePhart")
 public class Edgetonomous extends OpMode {
 
-    private Robot robot;
+    private RobotOld robot;
     private TaskRunner runner;
     private InputManager inputManager;
     private List<LynxModule> hubs;
@@ -33,7 +33,7 @@ public class Edgetonomous extends OpMode {
 
     @Override
     public void init() {
-        robot = new Robot(hardwareMap);
+        robot = new RobotOld(hardwareMap);
         robot.disableCamera();
         robot.launcher.fallbackRpm = 1040;
         runner = new TaskRunner();
@@ -53,25 +53,25 @@ public class Edgetonomous extends OpMode {
         Supplier<Task> waitRobot = () -> Task.newWithUpdate(() -> robot.notTransitioning());
         Supplier<Task> waitSpunUp =
                 () -> Task.newWithUpdate(() -> robot.launcher.isAtTargetRpm()).andThen(new DelayTask(1600));
-        Supplier<Action> spinUp = () -> taskToAction(robot.deferTransition(Robot.Transfer.RIGHT_BUMPER_START)
-                .andThen(robot.deferTransition(Robot.Transfer.RIGHT_BUMPER_START))
+        Supplier<Action> spinUp = () -> taskToAction(robot.deferTransition(RobotOld.Transfer.RIGHT_BUMPER_START)
+                .andThen(robot.deferTransition(RobotOld.Transfer.RIGHT_BUMPER_START))
         );
         Supplier<Action> shoot = () -> taskToAction(waitRobot.get()
-                .andThen(robot.deferTransition(Robot.Transfer.RIGHT_BUMPER_START).with(waitSpunUp.get()))
-                .andThen(robot.deferTransition(Robot.Transfer.RIGHT_BUMPER_END))
+                .andThen(robot.deferTransition(RobotOld.Transfer.RIGHT_BUMPER_START).with(waitSpunUp.get()))
+                .andThen(robot.deferTransition(RobotOld.Transfer.RIGHT_BUMPER_END))
         );
 
         final double shootAngle = Math.toRadians(161);
         Vector2d shootLoc = new Vector2d(55, 21);
         Action path = drive.actionBuilder(drive.localizer.getPose())
                 // first set
-                .afterTime(0, taskToAction(robot.deferTransition(Robot.Transfer.RIGHT_BUMPER_START)))
+                .afterTime(0, taskToAction(robot.deferTransition(RobotOld.Transfer.RIGHT_BUMPER_START)))
                 .waitSeconds(0.5)
                 .strafeToLinearHeading(shootLoc, shootAngle)
                 .stopAndAdd(shoot.get())
 
                 // pickup, score second set
-                .afterTime(0.2, taskToAction(robot.deferTransition(Robot.Transfer.LEFT_BUMPER_START)))
+                .afterTime(0.2, taskToAction(robot.deferTransition(RobotOld.Transfer.LEFT_BUMPER_START)))
                 .splineToSplineHeading(new Pose2d(34, 30, Math.toRadians(90)), Math.toRadians(90))
                 .strafeToConstantHeading(new Vector2d(34, 56))
                 .waitSeconds(5)
@@ -81,7 +81,7 @@ public class Edgetonomous extends OpMode {
                 .stopAndAdd(shoot.get())
 
                 // third set
-                .afterTime(1.2, taskToAction(robot.deferTransition(Robot.Transfer.LEFT_BUMPER_START)))
+                .afterTime(1.2, taskToAction(robot.deferTransition(RobotOld.Transfer.LEFT_BUMPER_START)))
                 .splineToSplineHeading(new Pose2d(10, 30, Math.toRadians(90)), Math.toRadians(90))
                 .strafeToConstantHeading(new Vector2d(10, 56))
                 .afterTime(0, spinUp.get())

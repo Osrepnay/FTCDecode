@@ -6,9 +6,8 @@ import com.qualcomm.robotcore.hardware.HardwareMap;
 
 public class Intake {
     public static final double INTAKE_OFF = 0;
-    public static final double INTAKE_ON = 0.6;
-    public static final double INTAKE_TRANSFER = 0.18;
-    public static final double INTAKE_TRANSFER_SLOW = 0.1;
+    public static final double INTAKE_ON = 0.8;
+    public static final double INTAKE_TRANSFER = 0.3;
     public static final double INTAKE_HOLD = 0.5;
     public static final double INTAKE_BARELYMOVE = 0.1;
 

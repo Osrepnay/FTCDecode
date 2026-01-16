@@ -6,7 +6,6 @@ import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.CRServo;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
-import com.qualcomm.robotcore.hardware.IMU;
 import com.qualcomm.robotcore.hardware.PwmControl;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.hardware.ServoImplEx;
@@ -46,9 +45,7 @@ public class RealTest extends OpMode {
         if (!motorName.isEmpty()) {
             motor = hardwareMap.get(DcMotorEx.class, motorName);
         }
-        dt = new Drivetrain(hardwareMap,
-                hardwareMap.get(IMU.class, "imu"),
-                new CachingVoltageSensor(hardwareMap.voltageSensor.iterator().next()));
+        dt = new Drivetrain(hardwareMap, new CachingVoltageSensor(hardwareMap.voltageSensor.iterator().next()));
         inp = new InputManager();
         inp.addTrigger(new Trigger(Trigger.TriggerType.BEGIN, () -> gamepad1.a, () -> servoPos += 0.005));
         inp.addTrigger(new Trigger(Trigger.TriggerType.BEGIN, () -> gamepad1.b, () -> servoPos -= 0.005));
@@ -88,7 +85,7 @@ public class RealTest extends OpMode {
             motor.setPower(gamepad1.right_trigger - gamepad1.left_trigger);
             telemetry.addData("motorPower", motor.getPower());
             telemetry.addData("motorpos", motor.getCurrentPosition());
-            telemetry.addData("motor vel", motor.getVelocity() / 145.1 * 60);
+            telemetry.addData("motor tps", motor.getVelocity());
         }
 
         dash.update();
