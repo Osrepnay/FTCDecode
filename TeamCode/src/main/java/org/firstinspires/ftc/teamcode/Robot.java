@@ -1,19 +1,18 @@
 package org.firstinspires.ftc.teamcode;
 
 import com.acmerobotics.dashboard.config.Config;
-import com.qualcomm.hardware.limelightvision.LLResult;
+import com.acmerobotics.roadrunner.Pose2d;
+import com.acmerobotics.roadrunner.Vector2d;
 import com.qualcomm.hardware.limelightvision.Limelight3A;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.hardware.VoltageSensor;
 
-import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
-import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
-import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
-import org.firstinspires.ftc.robotcore.external.navigation.Pose3D;
-import org.firstinspires.ftc.robotcore.external.navigation.UnnormalizedAngleUnit;
 import org.firstinspires.ftc.teamcode.noncents.CachingVoltageSensor;
 import org.firstinspires.ftc.teamcode.noncents.tasks.Task;
 import org.firstinspires.ftc.teamcode.noncents.tasks.TaskRunner;
+import org.firstinspires.ftc.teamcode.rr.Localizer;
+import org.firstinspires.ftc.teamcode.rr.MecanumDrive;
+import org.firstinspires.ftc.teamcode.rr.PinpointLocalizer;
 
 import java.util.ArrayDeque;
 import java.util.Optional;
@@ -46,7 +45,7 @@ public class Robot {
     public final Intake intake;
     public final Latch latch;
     public final Launcher launcher;
-    public final GoBildaPinpointDriver pinpoint;
+    public final Localizer localizer;
     public final Limelight3A limelight;
 
     private State state = State.IDLE;
@@ -57,21 +56,33 @@ public class Robot {
     private boolean stopAutoRpm = false;
     private boolean slowShoot = false;
     private double goalDist = -1;
+    private boolean updateLocalizer = true;
 
     public Robot(HardwareMap hardwareMap) {
+        // pinpoint.setPosition(new Pose2D(DistanceUnit.MM, 235.17, -1619.83, AngleUnit.DEGREES, 90));
+        this(hardwareMap, new Pose2d(
+                .375 + 181.525 / 25.4,
+                .375 + 184 / 25.4 * Color.currentAsMult(),
+                Math.toRadians(90 * Color.currentAsMult())
+        ));
+    }
+
+    public Robot(HardwareMap hardwareMap, Pose2d startPose) {
+        this(hardwareMap, new PinpointLocalizer(
+                hardwareMap,
+                MecanumDrive.PARAMS.inPerTick,
+                startPose
+        ), true);
+    }
+
+    public Robot(HardwareMap hardwareMap, Localizer existingLocalizer, boolean updateLocalizer) {
+        this.updateLocalizer = updateLocalizer;
+        localizer = existingLocalizer;
         VoltageSensor voltageSensor = new CachingVoltageSensor(hardwareMap.voltageSensor.iterator().next());
         drivetrain = new Drivetrain(hardwareMap, voltageSensor);
         intake = new Intake(hardwareMap);
         latch = new Latch(hardwareMap);
         launcher = new Launcher(hardwareMap, voltageSensor);
-        pinpoint = hardwareMap.get(GoBildaPinpointDriver.class, "pinpoint");
-        pinpoint.setOffsets(-134.263, 49, DistanceUnit.MM);
-        pinpoint.setEncoderResolution(GoBildaPinpointDriver.GoBildaOdometryPods.goBILDA_4_BAR_POD);
-        pinpoint.setEncoderDirections(
-                GoBildaPinpointDriver.EncoderDirection.REVERSED,
-                GoBildaPinpointDriver.EncoderDirection.REVERSED
-        );
-        pinpoint.setPosition(new Pose2D(DistanceUnit.MM, 320, -1645, AngleUnit.DEGREES, 90));
         limelight = hardwareMap.get(Limelight3A.class, "limelight");
         limelight.pipelineSwitch(0);
     }
@@ -172,43 +183,61 @@ public class Robot {
         long time = System.currentTimeMillis();
 
         launcher.update();
-        pinpoint.update();
-        double heading = pinpoint.getHeading(AngleUnit.RADIANS);
-        Pose2D pinpointPos = pinpoint.getPosition();
-        drivetrain.update(heading - Math.PI / 2);
+        if (updateLocalizer) {
+            localizer.update();
+        }
+        double heading = localizer.getPose().heading.toDouble();
+        drivetrain.update(heading - Math.PI / 2 * Color.currentAsMult());
 
-        if (Math.sqrt(Math.pow(pinpoint.getVelX(DistanceUnit.MM), 2) + Math.pow(pinpoint.getVelY(DistanceUnit.MM), 2)) < 40
+        double xMm = localizer.getPose().position.x * 25.4;
+        double yMm = localizer.getPose().position.y * 25.4;
+
+        /*
+        if (Math.sqrt(Math.pow(pinpoint.getVelX(DistanceUnit.MM), 2) + Math.pow(pinpoint.getVelY(DistanceUnit.MM), 2)
+        ) < 40
                 && pinpoint.getHeadingVelocity(UnnormalizedAngleUnit.DEGREES) < 2) {
-            limelight.updateRobotOrientation(Math.toDegrees(heading) - 90);
+            // limelight.updateRobotOrientation(Math.toDegrees(heading) - 90);
             LLResult result = limelight.getLatestResult();
             if (time - lastLLUpdate > LL_INTERVAL_MS && result != null && result.isValid()) {
-                Pose3D botpose = result.getBotpose_MT2();
+                Pose3D botpose = result.getBotpose();
                 if (botpose.getPosition().x != 0 || botpose.getPosition().y != 0) {
                     System.out.println(botpose);
                     Pose2D newPos = new Pose2D(
                             DistanceUnit.MM,
-                            moveCloser(pinpointPos.getX(DistanceUnit.MM), botpose.getPosition().x * 1000, 0.3),
-                            moveCloser(pinpointPos.getY(DistanceUnit.MM), botpose.getPosition().y * 1000, 0.3),
+                            moveCloser(xMm, botpose.getPosition().x * 1000, 0.3),
+                            moveCloser(yMm, botpose.getPosition().y * 1000, 0.3),
                             AngleUnit.RADIANS,
-                            pinpointPos.getHeading(AngleUnit.RADIANS)
+                            heading
                     );
-                    pinpoint.setPosition(newPos);
+                    // pinpoint.setPosition(newPos);
                 }
             }
         }
+         */
 
-        double targetX = (-72 + 2.5) * 25.4;
-        double targetY = (-72 + 2.5) * 25.4;
+        Vector2d launcherTargetMm = new Vector2d(
+                -(70.75 - 2.5) * 25.4,
+                (70.75 - 2.5 - 6) * 25.4 * Color.currentAsMult()
+        );
+
         double lockRad = Math.atan2(
-                targetY - pinpoint.getPosY(DistanceUnit.MM),
-                targetX - pinpoint.getPosX(DistanceUnit.MM)
+                launcherTargetMm.y - yMm,
+                launcherTargetMm.x - xMm
         );
         launcher.setTurretRadians(lockRad - (heading + Math.PI));
 
-        goalDist = Math.sqrt(Math.pow(targetY - pinpoint.getPosY(DistanceUnit.MM), 2) +
-                Math.pow(targetX - pinpoint.getPosX(DistanceUnit.MM), 2));
+        goalDist = Math.sqrt(Math.pow(launcherTargetMm.y - yMm, 2) + Math.pow(launcherTargetMm.x - xMm, 2));
         if (!stopAutoRpm && state.spunUp && getNextState().map(s -> s.spunUp).orElse(true)) {
-            launcher.setTargetRpmByDistance(goalDist);
+            launcher.setByDistance(goalDist);
+        }
+    }
+
+    public void resetPos() {
+        if (Color.getCurrentColor().orElse(Color.RED) == Color.RED) {
+            // localizer.setPose(new Pose2d(new Vector2d(63.2, 61.1), localizer.getPose().heading));
+            localizer.setPose(new Pose2d(new Vector2d(63.2, -61.1), Math.PI / 2));
+        } else {
+            localizer.setPose(new Pose2d(new Vector2d(63.2, 61.1), -Math.PI / 2));
         }
     }
 
@@ -228,12 +257,12 @@ public class Robot {
         forceUnlock = !forceUnlock;
     }
 
-    public void enableCamera() {
-        stopAutoRpm = false;
+    public void disableAutoRpm() {
+        stopAutoRpm = true;
     }
 
-    public void disableCamera() {
-        stopAutoRpm = true;
+    public void enableAutoRpm() {
+        stopAutoRpm = false;
     }
 
     public boolean isAutoRpmStopped() {

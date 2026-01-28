@@ -30,17 +30,17 @@
 package org.firstinspires.ftc.teamcode.opmode;
 
 import com.acmerobotics.dashboard.FtcDashboard;
+import com.acmerobotics.roadrunner.Pose2d;
 import com.qualcomm.hardware.lynx.LynxModule;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
-import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
-import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.teamcode.Color;
 import org.firstinspires.ftc.teamcode.Robot;
 import org.firstinspires.ftc.teamcode.noncents.input.InputManager;
 import org.firstinspires.ftc.teamcode.noncents.tasks.TaskRunner;
+import org.firstinspires.ftc.teamcode.rr.Localizer;
 
 import java.util.ArrayDeque;
 import java.util.List;
@@ -55,7 +55,14 @@ public class YugePhart extends OpMode {
 
     @Override
     public void init() {
-        robot = new Robot(hardwareMap);
+        if ((boolean) blackboard.getOrDefault("auto done", false)) {
+            telemetry.addLine(blackboard.toString());
+            blackboard.remove("auto done");
+            telemetry.update();
+            robot = new Robot(hardwareMap, (Pose2d) blackboard.get("auto pose"));
+        } else {
+            robot = new Robot(hardwareMap);
+        }
         runner = new TaskRunner();
         dash = FtcDashboard.getInstance().getTelemetry();
         inputManager = new InputManager();
@@ -106,6 +113,9 @@ public class YugePhart extends OpMode {
         if (gamepad1.crossWasPressed()) {
             robot.toggleUnlockOverride();
         }
+        if (gamepad1.squareWasPressed()) {
+            robot.resetPos();
+        }
 
         if (gamepad2.dpad_down) {
             robot.intake.setPower(-gamepad2.right_stick_y);
@@ -115,9 +125,9 @@ public class YugePhart extends OpMode {
         }
         if (gamepad2.left_bumper && gamepad2.rightBumperWasPressed()) {
             if (robot.isAutoRpmStopped()) {
-                robot.enableCamera();
+                robot.enableAutoRpm();
             } else {
-                robot.disableCamera();
+                robot.disableAutoRpm();
             }
         }
         if (gamepad2.dpadLeftWasPressed()) {
@@ -139,9 +149,9 @@ public class YugePhart extends OpMode {
         telemetry.addData("dist", robot.getGoalDist());
         telemetry.addData("heading", Math.toDegrees(robot.drivetrain.getHeading()));
         telemetry.addData("camera is disabled?", robot.isAutoRpmStopped());
-        telemetry.addData("pinpoint x", robot.pinpoint.getPosition().getX(DistanceUnit.MM));
-        telemetry.addData("pinpoint y", robot.pinpoint.getPosition().getY(DistanceUnit.MM));
-        telemetry.addData("pinpoint deg", robot.pinpoint.getPosition().getHeading(AngleUnit.DEGREES));
+        telemetry.addData("pinpoint x", robot.localizer.getPose().position.x);
+        telemetry.addData("pinpoint y", robot.localizer.getPose().position.y);
+        telemetry.addData("pinpoint deg", Math.toDegrees(robot.localizer.getPose().heading.toDouble()));
         telemetry.addData("fallback rpm", robot.launcher.fallbackRpm);
         dash.addData("rpm", robot.launcher.getCurrentRpm());
         dash.addData("target rpm", robot.launcher.getTargetRpm());

@@ -42,4 +42,10 @@ public class Hood {
         double pos = servoPos.interpolate(frac);
         return hoodLeft.doSetPosition(pos).with(hoodRight.doSetPosition(pos));
     }
+
+    public void setPos(double frac) {
+        double pos = servoPos.interpolate(frac);
+        hoodLeft.servo.setPosition(pos);
+        hoodRight.servo.setPosition(pos);
+    }
 }

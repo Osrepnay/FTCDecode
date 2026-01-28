@@ -42,6 +42,7 @@ import com.acmerobotics.roadrunner.ftc.LynxFirmware;
 import com.acmerobotics.roadrunner.ftc.OverflowEncoder;
 import com.acmerobotics.roadrunner.ftc.PositionVelocityPair;
 import com.acmerobotics.roadrunner.ftc.RawEncoder;
+import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
 import com.qualcomm.hardware.lynx.LynxModule;
 import com.qualcomm.hardware.rev.RevHubOrientationOnRobot;
 import com.qualcomm.robotcore.hardware.DcMotor;
@@ -75,17 +76,17 @@ public final class MecanumDrive {
                 RevHubOrientationOnRobot.UsbFacingDirection.UP;
 
         // drive model parameters
-        public double inPerTick = 95.0 / 48427;
-        public double lateralInPerTick = inPerTick;
-        public double trackWidthTicks = 7561.184699738115;
+        public double inPerTick = (32 * Math.PI / 25.4) / 2000;// 112 / 56961 // 95.0 / 48427;
+        public double lateralInPerTick = 0.00144585547797515;
+        public double trackWidthTicks = 5559.450680931914;
 
         // feedforward parameters (in tick units)
-        public double kS = 0.8605693891679334;
-        public double kV = 0.0003441178969398273;
+        public double kS = 2.0774410429020844;
+        public double kV = 0.00024939921521897434;
         public double kA = 0.000056;
 
         // path profile parameters (in inches)
-        public double maxWheelVel = 50;
+        public double maxWheelVel = 70;
         public double minProfileAccel = -30;
         public double maxProfileAccel = 50;
 
@@ -95,12 +96,12 @@ public final class MecanumDrive {
 
         // path controller gains
         public double axialGain = 4.0;
-        public double lateralGain = 5.0;
-        public double headingGain = 13.0; // shared with turn
+        public double lateralGain = 8.0;
+        public double headingGain = 8.0; // shared with turn
 
         public double axialVelGain = 0.0;
         public double lateralVelGain = 0.0;
-        public double headingVelGain = 0.5; // shared with turn
+        public double headingVelGain = 0.3; // shared with turn
     }
 
     public static Params PARAMS = new Params();
@@ -258,7 +259,8 @@ public final class MecanumDrive {
 
         voltageSensor = hardwareMap.voltageSensor.iterator().next();
 
-        localizer = new TwoDeadWheelLocalizer(hardwareMap, lazyImu.get(), PARAMS.inPerTick, pose);
+        // localizer = new TwoDeadWheelLocalizer(hardwareMap, lazyImu.get(), PARAMS.inPerTick, pose);
+        localizer = new PinpointLocalizer(hardwareMap, PARAMS.inPerTick, pose);
 
         FlightRecorder.write("MECANUM_PARAMS", PARAMS);
     }

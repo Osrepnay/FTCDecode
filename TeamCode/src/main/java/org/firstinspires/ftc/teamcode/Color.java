@@ -13,4 +13,9 @@ public enum Color {
     public static Optional<Color> getCurrentColor() {
         return Optional.ofNullable(currentColor);
     }
+
+    // red is 1, blue is -1
+    public static int currentAsMult() {
+        return getCurrentColor().orElse(RED) == RED ? 1 : -1;
+    }
 }

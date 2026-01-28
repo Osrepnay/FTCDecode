@@ -37,13 +37,27 @@ public class Launcher {
     );
     public static final Lerp rpmDist = new Lerp(
             new double[][]{
-                    {160 * 25.4, 3400},
-                    {138 * 25.4, 3130},
-                    {100 * 25.4, 2700},
-                    {71 * 25.4, 2530},
+                    {900, 2000},
+                    {1200, 2150},
+                    {1516, 2400},
+                    {1840, 2525},
+                    {2137, 2600},
+                    {2675, 2875},
+                    {3434, 3150},
+                    {3818, 3200},
+                    {3958, 3300},
             }
     );
-    public static EMAFilter rpmFilter = new EMAFilter(0.3);
+    public static EMAFilter rpmFilter = new EMAFilter(0.8);
+    public static final Lerp hoodDist = new Lerp(
+            new double[][] {
+                    {4000, 1},
+                    {1840, 0.9},
+                    {1516, 0.8},
+                    {1200, 0.5},
+                    {900, 0.1},
+            }
+    );
 
     public double fallbackRpm = 2400;
     private double targetRpm = 0;
@@ -59,10 +73,7 @@ public class Launcher {
         this.motors = motors;
         this.hood = hood;
         this.turret = turret;
-        turret.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
-        turret.setTargetPosition(0);
-        turret.setMode(DcMotor.RunMode.RUN_TO_POSITION);
-        turret.setPower(1);
+        // turret.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         this.voltageSensor = voltageSensor;
     }
 
@@ -98,8 +109,9 @@ public class Launcher {
         targetRpm = rpm;
     }
 
-    public void setTargetRpmByDistance(double distMm) {
+    public void setByDistance(double distMm) {
         setTargetRpm(rpmDist.interpolate(distMm));
+        hood.setPos(Math.min(1, Math.max(0, hoodDist.interpolate(distMm))));
     }
 
     public double getCurrentRpm() {
@@ -133,6 +145,10 @@ public class Launcher {
             return false;
         }
         turret.setTargetPosition(ticks);
+        if (turret.getMode() != DcMotor.RunMode.RUN_TO_POSITION) {
+            turret.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+            turret.setPower(1);
+        }
         currentRad = rad;
         return true;
     }

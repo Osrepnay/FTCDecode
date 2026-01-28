@@ -18,7 +18,7 @@ public class EMAFilter {
             value = sample;
         } else {
             value = sample * smoothingFactor + value * (1 - smoothingFactor);
-            // oroboro.com/irregular-ema
+            // https://oroboro.com/irregular-ema
             /*
             long delta = now - lastUpdate;
             double a = delta / smoothingFactor;
