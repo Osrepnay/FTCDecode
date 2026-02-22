@@ -1,0 +1,19 @@
+plugins {
+    id 'application'
+}
+
+java {
+    sourceCompatibility JavaVersion.VERSION_11
+    targetCompatibility JavaVersion.VERSION_11
+}
+
+repositories {
+    mavenCentral()
+    maven {
+        url = "https://maven.brott.dev/"
+    }
+}
+dependencies {
+    implementation "org.tinfour:TinfourCore:2.1.9"
+    implementation "com.acmerobotics.roadrunner:core:1.0.1"
+}

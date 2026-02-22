@@ -14,90 +14,95 @@ public class MeepMeepTesting {
 
         RoadRunnerBotEntity myBot = new DefaultBotBuilder(meepMeep)
                 // Set bot constraints: maxVel, maxAccel, maxAngVel, maxAngAccel, track width
-                .setConstraints(60, 60, Math.toRadians(180), Math.toRadians(180), 7561.184699738115 * 95.0 / 48427)
+                .setConstraints(70, 50, Math.toRadians(180), Math.toRadians(180),
+                        5559.450680931914 * (32 * Math.PI / 25.4) / 2000)
                 .build();
 
         Action emptyAction = _telemetryPacket -> false;
         Action goontonomous =
-                myBot.getDrive()
-                        .actionBuilder(new Pose2d(-52, 51.5, Math.toRadians(40)))
+                myBot.getDrive().actionBuilder(new Pose2d(-52, 51.5, Math.toRadians(40)))
                         // first set
                         .afterTime(0, emptyAction)
-                        .waitSeconds(0.5)
-                        .setTangent(Math.toRadians(-45))
-                        .lineToX(-23)
+                        .waitSeconds(0.6)
+                        .setTangent(Math.toRadians(-50))
+                        .lineToX(-30)
                         .stopAndAdd(emptyAction)
 
                         // pickup, score second set
                         .afterTime(0.3, emptyAction)
-                        .setTangent(Math.toRadians(0))
-                        .splineToSplineHeading(new Pose2d(-13, 30, Math.toRadians(90)), Math.toRadians(90))
-                        .strafeToConstantHeading(new Vector2d(-13, 48))
+                        .splineTo(new Vector2d(-13, 48), Math.toRadians(90))
+                        .splineTo(new Vector2d(-13, 53), Math.toRadians(90))
                         .setTangent(0)
-                        .splineTo(new Vector2d(-4, 55.3), Math.toRadians(90))
-                        .waitSeconds(1.5)
+                        .splineTo(new Vector2d(-4, 59), Math.toRadians(90))
+                        .waitSeconds(0.6)
                         .afterTime(0, emptyAction)
-                        .strafeToLinearHeading(new Vector2d(-23, 23), Math.toRadians(45))
+                        .strafeToLinearHeading(new Vector2d(-16, 23), Math.toRadians(30))
                         .stopAndAdd(emptyAction)
 
                         // third set
                         .afterTime(0.8, emptyAction)
-                        .setTangent(Math.toRadians(0))
-                        .splineToSplineHeading(new Pose2d(-3, 23, Math.toRadians(0)), Math.toRadians(0))
-                        .splineToSplineHeading(new Pose2d(12, 30, Math.toRadians(90)), Math.toRadians(90))
-                        .strafeToConstantHeading(new Vector2d(12, 48))
-                        .afterTime(0, emptyAction)
-                        .strafeToLinearHeading(new Vector2d(-23, 23), Math.toRadians(45))
+                        .splineTo(new Vector2d(8, 40), Math.toRadians(65))
+                        .splineTo(new Vector2d(11, 48), Math.toRadians(70))
+                        .afterTime(0.3, emptyAction)
+                        .strafeToLinearHeading(new Vector2d(-16, 23), Math.toRadians(30))
                         .stopAndAdd(emptyAction)
 
                         // fourth/final set
                         .afterTime(1.3, emptyAction)
-                        .setTangent(Math.toRadians(0))
-                        .splineToSplineHeading(new Pose2d(12, 23, Math.toRadians(0)), Math.toRadians(0))
-                        .splineToSplineHeading(new Pose2d(36, 30, Math.toRadians(90)), Math.toRadians(90))
-                        .strafeToConstantHeading(new Vector2d(36, 48))
-                        .afterTime(0, emptyAction)
-                        .strafeToLinearHeading(new Vector2d(-23, 23), Math.toRadians(45))
+                        .splineTo(new Vector2d(32, 40), Math.toRadians(60))
+                        .splineTo(new Vector2d(35, 48), Math.toRadians(75))
+                        .afterTime(0.6, emptyAction)
+                        .setReversed(true)
+                        .splineTo(new Vector2d(-16, 23), Math.toRadians(180))
                         .stopAndAdd(emptyAction)
 
                         .setTangent(Math.toRadians(45))
                         .lineToX(-13)
+
                         .build();
 
-        final double shootAngle = Math.toRadians(161);
-        Vector2d shootLoc = new Vector2d(55, 21);
         Action special =
                 myBot.getDrive()
-                        .actionBuilder(new Pose2d(60, 19, Math.toRadians(180)))
+                        .actionBuilder(new Pose2d(63.7, 15.2, Math.toRadians(-90)))
+                        .stopAndAdd(emptyAction) // shoot
+
                         // first set
-                        .afterTime(0, emptyAction)
-                        .waitSeconds(0.5)
-                        .strafeToLinearHeading(shootLoc, shootAngle)
-                        .stopAndAdd(emptyAction)
-
-                        // pickup, score second set
-                        .afterTime(0.2, emptyAction)
-                        .splineToSplineHeading(new Pose2d(34, 30, Math.toRadians(90)), Math.toRadians(90))
-                        .strafeToConstantHeading(new Vector2d(34, 56))
-                        .waitSeconds(5)
-                        .afterTime(0, emptyAction)
+                        .afterTime(0, emptyAction) // intake
+                        .strafeToLinearHeading(new Vector2d(50, 60), Math.toRadians(75))
+                        .strafeToLinearHeading(new Vector2d(63, 62), Math.toRadians(90))
+                        .afterTime(0, emptyAction) // spin up
                         .setReversed(true)
-                        .splineTo(shootLoc, shootAngle - Math.PI)
-                        .stopAndAdd(emptyAction)
+                        .splineTo(new Vector2d(57, 20), Math.toRadians(-110))
+                        .stopAndAdd(emptyAction) // shoot
 
-                        // third set
-                        .afterTime(1.2, emptyAction)
-                        .splineToSplineHeading(new Pose2d(10, 30, Math.toRadians(90)), Math.toRadians(90))
-                        .strafeToConstantHeading(new Vector2d(10, 56))
-                        .afterTime(0, emptyAction)
-                        .setReversed(true)
-                        .splineTo(shootLoc, shootAngle - Math.PI)
-                        .stopAndAdd(emptyAction)
+                        // second set
+                        .afterTime(0, emptyAction) // intake
+                        .setTangent(Math.toRadians(170))
+                        .splineToSplineHeading(new Pose2d(48, 25, Math.toRadians(140)), Math.toRadians(140))
+                        .splineTo(new Vector2d(35, 55), Math.toRadians(100))
+                        .setTangent(Math.toRadians(-60))
+                        .afterTime(0, emptyAction) // spin up
+                        .lineToXLinearHeading(57, Math.toRadians(30))
+                        .stopAndAdd(emptyAction) // shoot
 
-                        .lineToX(40)
+                        // loose balls
+                        .afterTime(0, emptyAction) // intake
+                        .setTangent(Math.toRadians(90))
+                        .splineToSplineHeading(new Pose2d(54, 40, Math.toRadians(90)), Math.toRadians(90))
+                        .splineTo(new Vector2d(54, 59), Math.toRadians(90))
+                        .endTrajectory()
+                        // .setTangent(Math.toRadians(-65))
+                        .afterTime(0, emptyAction) // spin up
+                        .setTangent(Math.toRadians(-94))
+                        .lineToYLinearHeading(18, Math.toRadians(30))
+                        .stopAndAdd(emptyAction) // shoot
+
+                        .setTangent(Math.toRadians(120))
+                        .lineToX(51)
+
                         .build();
 
-        myBot.runAction(goontonomous);
+        myBot.runAction(special);
 
         meepMeep.setBackground(MeepMeep.Background.FIELD_DECODE_JUICE_DARK)
                 .setDarkMode(true)

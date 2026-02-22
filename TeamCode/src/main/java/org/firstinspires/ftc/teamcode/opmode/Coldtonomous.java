@@ -5,7 +5,9 @@ import static org.firstinspires.ftc.teamcode.ActionTaskInterop.taskToAction;
 
 import com.acmerobotics.roadrunner.Action;
 import com.acmerobotics.roadrunner.Pose2d;
+import com.acmerobotics.roadrunner.TranslationalVelConstraint;
 import com.acmerobotics.roadrunner.Vector2d;
+import com.acmerobotics.roadrunner.VelConstraint;
 import com.qualcomm.hardware.lynx.LynxModule;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
@@ -25,7 +27,7 @@ import java.util.List;
 import java.util.function.Supplier;
 
 @Autonomous(preselectTeleOp = "YugePhart")
-public class GoontonomousBlue extends OpMode {
+public class Coldtonomous extends OpMode {
 
     private Robot robot;
     private TaskRunner runner;
@@ -46,7 +48,7 @@ public class GoontonomousBlue extends OpMode {
             telemetry.update();
         }
 
-        Pose2d start = new Pose2d(-52, -51.5, Math.toRadians(-40));
+        Pose2d start = new Pose2d(63.7, 15.2, Math.toRadians(-90));
         drive = new MecanumDrive(hardwareMap, start);
         blackboard.put("auto done", false);
 
@@ -65,48 +67,54 @@ public class GoontonomousBlue extends OpMode {
                 .andThen(robot.deferTransition(Robot.Transfer.RIGHT_BUMPER_END))
         );
         Action path = drive.actionBuilder(drive.localizer.getPose())
+                .stopAndAdd(taskToAction(robot.deferTransition(Robot.Transfer.RIGHT_BUMPER_START)))
+                .stopAndAdd(shoot.get()) // shoot
+
                 // first set
-                .afterTime(0, taskToAction(robot.doInit()
-                        .with(new DelayTask(500)
-                                .andThen(Task.newWithOneshot(() -> robot.intake.setPower(Intake.INTAKE_HOLD)))
-                                .with(robot.deferTransition(Robot.Transfer.RIGHT_BUMPER_START))
-                        )
-                ))
-                .waitSeconds(0.6)
-                .setTangent(Math.toRadians(50))
-                .lineToX(-30)
-                .stopAndAdd(shoot.get())
-
-                // pickup, score second set
-                .afterTime(0.0, taskToAction(robot.deferTransition(Robot.Transfer.LEFT_BUMPER_START)))
-                .splineTo(new Vector2d(-13, -48), Math.toRadians(-90))
-                .splineTo(new Vector2d(-13, -51), Math.toRadians(-90))
-                .setTangent(0)
-                .splineTo(new Vector2d(-4, -59), Math.toRadians(-90))
-                .waitSeconds(0.6)
-                .afterTime(0, spinUp.get())
-                .strafeToLinearHeading(new Vector2d(-16, -23), Math.toRadians(-30))
-                .stopAndAdd(shoot.get())
-
-                // third set
-                .afterTime(0.3, taskToAction(robot.deferTransition(Robot.Transfer.LEFT_BUMPER_START)))
-                .splineTo(new Vector2d(10, -40), Math.toRadians(-73))
-                .splineTo(new Vector2d(13, -56), Math.toRadians(-78))
-                .afterTime(0.3, spinUp.get())
-                .strafeToLinearHeading(new Vector2d(-16, -23), Math.toRadians(-30))
-                .stopAndAdd(shoot.get())
-
-                // fourth/final set
-                .afterTime(0.6, taskToAction(robot.deferTransition(Robot.Transfer.LEFT_BUMPER_START)))
-                .splineTo(new Vector2d(32, -40), Math.toRadians(-64))
-                .splineTo(new Vector2d(35, -56), Math.toRadians(-70))
-                .afterTime(0.6, spinUp.get())
+                .afterTime(0, taskToAction(robot.deferTransition(Robot.Transfer.LEFT_BUMPER_START))) // intake
+                .strafeToLinearHeading(new Vector2d(56, 59), Math.toRadians(77))
+                .strafeToLinearHeading(new Vector2d(65, 59), Math.toRadians(77))
+                .strafeToLinearHeading(new Vector2d(65, 60), Math.toRadians(90))
+                .afterTime(0, spinUp.get()) // spin up
                 .setReversed(true)
-                .splineTo(new Vector2d(-16, -23), Math.toRadians(-180))
-                .stopAndAdd(shoot.get())
+                .splineTo(new Vector2d(57, 20), Math.toRadians(-110))
+                .stopAndAdd(shoot.get()) // shoot
 
-                .setTangent(Math.toRadians(-45))
-                .lineToX(-8)
+                // second set
+                .afterTime(0, taskToAction(robot.deferTransition(Robot.Transfer.LEFT_BUMPER_START))) // intake
+                .setTangent(Math.toRadians(170))
+                .splineToSplineHeading(new Pose2d(49, 24, Math.toRadians(150)), Math.toRadians(150))
+                .splineTo(new Vector2d(37, 57.5), Math.toRadians(100))
+                .setTangent(Math.toRadians(-60))
+                .afterTime(0, spinUp.get()) // spin up
+                .lineToXLinearHeading(58.5, Math.toRadians(30))
+                .stopAndAdd(shoot.get()) // shoot
+
+                // loose balls
+                .afterTime(0, taskToAction(robot.deferTransition(Robot.Transfer.LEFT_BUMPER_START))) // intake
+                .setTangent(Math.toRadians(90))
+                .splineToSplineHeading(new Pose2d(58, 40, Math.toRadians(90)), Math.toRadians(90))
+                .splineTo(new Vector2d(58, 58), Math.toRadians(90))
+                .endTrajectory()
+                .setTangent(Math.toRadians(-90))
+                .afterTime(0, spinUp.get()) // spin up
+                .lineToYLinearHeading(18, Math.toRadians(30))
+                .stopAndAdd(shoot.get()) // shoot
+
+                /*
+                .afterTime(0, taskToAction(robot.deferTransition(Robot.Transfer.LEFT_BUMPER_START))) // intake
+                .setTangent(Math.toRadians(90))
+                .splineToSplineHeading(new Pose2d(56, 40, Math.toRadians(90)), Math.toRadians(90))
+                .splineTo(new Vector2d(56, 58), Math.toRadians(90))
+                .endTrajectory()
+                .afterTime(0, spinUp.get()) // spin up
+                .setTangent(Math.toRadians(-90))
+                .lineToYLinearHeading(18, Math.toRadians(30))
+                .stopAndAdd(shoot.get()) // shoot
+                 */
+
+                .setTangent(Math.toRadians(120))
+                .lineToX(51)
 
                 .build();
         runner.sendTask(actionToTask(path).andThen(Task.newWithOneshot(() -> {
@@ -137,7 +145,6 @@ public class GoontonomousBlue extends OpMode {
             telemetry.addData("loop ms", (double) (lastMs.getLast() - lastMs.getFirst()) / lastMs.size());
         }
         telemetry.addData("pose", robot.localizer.getPose());
-        telemetry.addData("target rpm", robot.launcher.getTargetRpm());
 
         runner.update();
         robot.update();

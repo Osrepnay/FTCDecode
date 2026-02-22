@@ -8,7 +8,7 @@ public class Intake {
     public static final double INTAKE_OFF = 0;
     public static final double INTAKE_ON = 0.8;
     public static final double INTAKE_TRANSFER = 0.3;
-    public static final double INTAKE_HOLD = 0.5;
+    public static final double INTAKE_HOLD = 0.2;
     public static final double INTAKE_BARELYMOVE = 0.1;
 
     public final DcMotorEx intake;

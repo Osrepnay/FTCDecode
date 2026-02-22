@@ -111,7 +111,7 @@ public class YugePhart extends OpMode {
             robot.performTransition(runner, Robot.Transfer.RIGHT_BUMPER_END);
         }
         if (gamepad1.crossWasPressed()) {
-            robot.toggleUnlockOverride();
+            robot.readLimelight();
         }
         if (gamepad1.squareWasPressed()) {
             robot.resetPos();
@@ -146,20 +146,23 @@ public class YugePhart extends OpMode {
         telemetry.addData("target rpm", robot.launcher.getTargetRpm());
         telemetry.addData("fallback rpm", robot.launcher.fallbackRpm);
         telemetry.addData("hood", robot.launcher.getHoodPos());
-        telemetry.addData("dist", robot.getGoalDist());
         telemetry.addData("heading", Math.toDegrees(robot.drivetrain.getHeading()));
         telemetry.addData("camera is disabled?", robot.isAutoRpmStopped());
         telemetry.addData("pinpoint x", robot.localizer.getPose().position.x);
         telemetry.addData("pinpoint y", robot.localizer.getPose().position.y);
         telemetry.addData("pinpoint deg", Math.toDegrees(robot.localizer.getPose().heading.toDouble()));
-        telemetry.addData("fallback rpm", robot.launcher.fallbackRpm);
+        telemetry.addData("turret", Math.toDegrees(robot.launcher.getTurretRadians()));
         dash.addData("rpm", robot.launcher.getCurrentRpm());
         dash.addData("target rpm", robot.launcher.getTargetRpm());
         dash.addData("heading", robot.drivetrain.getHeading());
 
         dash.update();
         runner.update();
-        robot.drivetrain.driveFieldCentric(-gamepad1.left_stick_y, gamepad1.left_stick_x, gamepad1.right_stick_x);
+        if (robot.getState().dtFollow) {
+            robot.drivetrain.driveFieldCentricFollow(-gamepad1.left_stick_y, gamepad1.left_stick_x, gamepad1.right_stick_x);
+        } else {
+            robot.drivetrain.driveFieldCentric(-gamepad1.left_stick_y, gamepad1.left_stick_x, gamepad1.right_stick_x);
+        }
         robot.update();
         inputManager.update();
     }

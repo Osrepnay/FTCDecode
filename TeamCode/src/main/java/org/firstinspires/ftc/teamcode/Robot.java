@@ -3,14 +3,16 @@ package org.firstinspires.ftc.teamcode;
 import com.acmerobotics.dashboard.config.Config;
 import com.acmerobotics.roadrunner.Pose2d;
 import com.acmerobotics.roadrunner.Vector2d;
+import com.qualcomm.hardware.limelightvision.LLResult;
 import com.qualcomm.hardware.limelightvision.Limelight3A;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 import com.qualcomm.robotcore.hardware.VoltageSensor;
 
+import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
+import org.firstinspires.ftc.robotcore.external.navigation.Pose3D;
 import org.firstinspires.ftc.teamcode.noncents.CachingVoltageSensor;
 import org.firstinspires.ftc.teamcode.noncents.tasks.Task;
 import org.firstinspires.ftc.teamcode.noncents.tasks.TaskRunner;
-import org.firstinspires.ftc.teamcode.rr.Localizer;
 import org.firstinspires.ftc.teamcode.rr.MecanumDrive;
 import org.firstinspires.ftc.teamcode.rr.PinpointLocalizer;
 
@@ -20,15 +22,19 @@ import java.util.Optional;
 @Config
 public class Robot {
     public enum State {
-        IDLE(false),
-        INTAKING(false),
-        PRIMED(true),
-        SHOOTING(true);
+        IDLE(false, false, false),
+        INTAKING(false, false, false),
+        PRIMED(true, false, false),
+        SHOOTING(true, false, true);
 
         public final boolean spunUp;
+        public final boolean dtFollow;
+        public final boolean brake;
 
-        State(boolean spunUp) {
+        State(boolean spunUp, boolean dtFollow, boolean brake) {
             this.spunUp = spunUp;
+            this.dtFollow = dtFollow;
+            this.brake = brake;
         }
     }
 
@@ -40,23 +46,24 @@ public class Robot {
     }
 
     public long LL_INTERVAL_MS = 100;
+    public double stddevPosMult = 35;
+    public double stddevYawMult = 2;
 
     public final Drivetrain drivetrain;
     public final Intake intake;
     public final Latch latch;
     public final Launcher launcher;
-    public final Localizer localizer;
+    public final PinpointLocalizer localizer;
     public final Limelight3A limelight;
 
     private State state = State.IDLE;
     private final ArrayDeque<State> futureStates = new ArrayDeque<>();
-    private boolean forceUnlock = false;
+    private final boolean updateLocalizer;
     // TODO this only does things on rpm control for now
     // rememer to integrate when fix the drivetrain update weirdness
     private boolean stopAutoRpm = false;
     private boolean slowShoot = false;
-    private double goalDist = -1;
-    private boolean updateLocalizer = true;
+    private boolean trustNextLimelight = false;
 
     public Robot(HardwareMap hardwareMap) {
         // pinpoint.setPosition(new Pose2D(DistanceUnit.MM, 235.17, -1619.83, AngleUnit.DEGREES, 90));
@@ -75,7 +82,7 @@ public class Robot {
         ), true);
     }
 
-    public Robot(HardwareMap hardwareMap, Localizer existingLocalizer, boolean updateLocalizer) {
+    public Robot(HardwareMap hardwareMap, PinpointLocalizer existingLocalizer, boolean updateLocalizer) {
         this.updateLocalizer = updateLocalizer;
         localizer = existingLocalizer;
         VoltageSensor voltageSensor = new CachingVoltageSensor(hardwareMap.voltageSensor.iterator().next());
@@ -122,7 +129,8 @@ public class Robot {
                         break;
                     case RIGHT_BUMPER_START:
                         targetState = State.PRIMED;
-                        task = Task.newWithOneshot(() -> launcher.setTargetRpm(launcher.fallbackRpm));
+                        // task = Task.newWithOneshot(() -> launcher.setTargetRpm(launcher.fallbackRpm));
+                        task = Task.empty();
                         break;
                 }
                 break;
@@ -136,7 +144,7 @@ public class Robot {
                 switch (transfer) {
                     case LEFT_BUMPER_START:
                         targetState = State.IDLE;
-                        task = Task.newWithOneshot(launcher::killPower);
+                        task = Task.newWithOneshot(() -> launcher.setFlywheelOn(false));
                         break;
                     case RIGHT_BUMPER_START:
                         targetState = State.SHOOTING;
@@ -151,7 +159,7 @@ public class Robot {
                 if (transfer == Transfer.RIGHT_BUMPER_END) {
                     targetState = State.IDLE;
                     task = Task.newWithOneshot(() -> {
-                        launcher.killPower();
+                        launcher.setFlywheelOn(false);
                         intake.setPower(Intake.INTAKE_OFF);
                     }).with(latch.doClose());
                 }
@@ -177,6 +185,10 @@ public class Robot {
         return start + (end - start) * proportion;
     }
 
+    private double moveCloserRot(double start, double end, double proportion) {
+        return AngleUnit.normalizeRadians(start + AngleUnit.normalizeRadians(end - start) * proportion);
+    }
+
     private long lastLLUpdate = 0;
 
     public void update() {
@@ -187,57 +199,60 @@ public class Robot {
             localizer.update();
         }
         double heading = localizer.getPose().heading.toDouble();
-        drivetrain.update(heading - Math.PI / 2 * Color.currentAsMult());
+        drivetrain.update(heading);
 
         double xMm = localizer.getPose().position.x * 25.4;
         double yMm = localizer.getPose().position.y * 25.4;
 
-        /*
-        if (Math.sqrt(Math.pow(pinpoint.getVelX(DistanceUnit.MM), 2) + Math.pow(pinpoint.getVelY(DistanceUnit.MM), 2)
-        ) < 40
-                && pinpoint.getHeadingVelocity(UnnormalizedAngleUnit.DEGREES) < 2) {
-            // limelight.updateRobotOrientation(Math.toDegrees(heading) - 90);
+        if (localizer.getPoseVel().linearVel.norm() < 2 && localizer.getPoseVel().angVel < 0.1) {
             LLResult result = limelight.getLatestResult();
-            if (time - lastLLUpdate > LL_INTERVAL_MS && result != null && result.isValid()) {
+            if (/* trustNextLimelight &&
+            */(time - lastLLUpdate > LL_INTERVAL_MS && result != null && result.isValid())) {
+                trustNextLimelight = false;
+                lastLLUpdate = time;
+                double[] stddev = result.getStddevMt1();
+                double stddevX = stddev[0];
+                double stddevY = stddev[1];
+                double stddevYaw = stddev[5];
                 Pose3D botpose = result.getBotpose();
                 if (botpose.getPosition().x != 0 || botpose.getPosition().y != 0) {
-                    System.out.println(botpose);
-                    Pose2D newPos = new Pose2D(
-                            DistanceUnit.MM,
-                            moveCloser(xMm, botpose.getPosition().x * 1000, 0.3),
-                            moveCloser(yMm, botpose.getPosition().y * 1000, 0.3),
-                            AngleUnit.RADIANS,
-                            heading
+                    Pose2d newPos = new Pose2d(
+                            moveCloser(xMm, botpose.getPosition().x * 1000,
+                                    Math.exp(-stddevX * stddevPosMult)) / 25.4,
+                            moveCloser(yMm, botpose.getPosition().y * 1000,
+                                    Math.exp(-stddevY * stddevPosMult)) / 25.4,
+                            // heading
+                            moveCloserRot(heading, botpose.getOrientation().getYaw(AngleUnit.RADIANS),
+                                    Math.exp(-stddevYaw * stddevYawMult))
                     );
-                    // pinpoint.setPosition(newPos);
+                    // localizer.setPose(newPos);
+                    // System.out.printf("x %6.2f %6.2f y %6.2f %6.2f rot %6.2f %6.2f\n", xMm / 25.4, botpose.getPosition().x * 1000 / 25.4, yMm / 25.4, botpose.getPosition().y * 1000 / 25.4, Math.toDegrees(heading), botpose.getOrientation().getYaw(AngleUnit.DEGREES));
                 }
             }
         }
-         */
 
-        Vector2d launcherTargetMm = new Vector2d(
-                -(70.75 - 2.5) * 25.4,
-                (70.75 - 2.5 - 6) * 25.4 * Color.currentAsMult()
-        );
-
-        double lockRad = Math.atan2(
-                launcherTargetMm.y - yMm,
-                launcherTargetMm.x - xMm
-        );
-        launcher.setTurretRadians(lockRad - (heading + Math.PI));
-
-        goalDist = Math.sqrt(Math.pow(launcherTargetMm.y - yMm, 2) + Math.pow(launcherTargetMm.x - xMm, 2));
-        if (!stopAutoRpm && state.spunUp && getNextState().map(s -> s.spunUp).orElse(true)) {
-            launcher.setByDistance(goalDist);
+        launcher.setFlywheelOn(state.spunUp && getNextState().map(s -> s.spunUp).orElse(true));
+        // TODO hack
+        // turn off flywheel, set, turn back on
+        if (stopAutoRpm && launcher.isFlywheelOn()) {
+            launcher.setFlywheelOn(false);
+            launcher.setLauncherParams(localizer.getPose(), localizer.getPoseVel());
+            // overrided calculated rpm
+            launcher.setTargetRpm(launcher.fallbackRpm);
+            launcher.setFlywheelOn(true);
+        } else {
+            launcher.setLauncherParams(localizer.getPose(), localizer.getPoseVel());
         }
+
+        drivetrain.setBrake(state.brake);
     }
 
     public void resetPos() {
         if (Color.getCurrentColor().orElse(Color.RED) == Color.RED) {
             // localizer.setPose(new Pose2d(new Vector2d(63.2, 61.1), localizer.getPose().heading));
-            localizer.setPose(new Pose2d(new Vector2d(63.2, -61.1), Math.PI / 2));
+            localizer.setPose(new Pose2d(new Vector2d(62.2, -63.4), Math.PI / 2));
         } else {
-            localizer.setPose(new Pose2d(new Vector2d(63.2, 61.1), -Math.PI / 2));
+            localizer.setPose(new Pose2d(new Vector2d(62.2, 63.4), -Math.PI / 2));
         }
     }
 
@@ -253,10 +268,6 @@ public class Robot {
         return futureStates.isEmpty();
     }
 
-    public void toggleUnlockOverride() {
-        forceUnlock = !forceUnlock;
-    }
-
     public void disableAutoRpm() {
         stopAutoRpm = true;
     }
@@ -269,15 +280,15 @@ public class Robot {
         return stopAutoRpm;
     }
 
+    public void readLimelight() {
+        trustNextLimelight = true;
+    }
+
     public void setSlowShoot(boolean slowShoot) {
         this.slowShoot = slowShoot;
     }
 
     public boolean isSlowShoot() {
         return slowShoot;
-    }
-
-    public double getGoalDist() {
-        return goalDist;
     }
 }

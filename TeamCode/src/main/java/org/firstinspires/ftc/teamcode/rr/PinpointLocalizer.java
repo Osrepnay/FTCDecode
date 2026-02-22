@@ -61,6 +61,8 @@ public final class PinpointLocalizer implements Localizer {
         return txWorldPinpoint.times(txPinpointRobot);
     }
 
+    private PoseVelocity2d lastPoseVel = new PoseVelocity2d(new Vector2d(0, 0), 0);
+
     @Override
     public PoseVelocity2d update() {
         driver.update();
@@ -69,8 +71,13 @@ public final class PinpointLocalizer implements Localizer {
             Vector2d worldVelocity = new Vector2d(driver.getVelX(DistanceUnit.INCH), driver.getVelY(DistanceUnit.INCH));
             Vector2d robotVelocity = Rotation2d.fromDouble(-txPinpointRobot.heading.log()).times(worldVelocity);
 
-            return new PoseVelocity2d(robotVelocity, driver.getHeadingVelocity(UnnormalizedAngleUnit.RADIANS));
+            lastPoseVel = new PoseVelocity2d(robotVelocity, driver.getHeadingVelocity(UnnormalizedAngleUnit.RADIANS));
+            return lastPoseVel;
         }
         return new PoseVelocity2d(new Vector2d(0, 0), 0);
+    }
+
+    public PoseVelocity2d getPoseVel() {
+        return lastPoseVel;
     }
 }

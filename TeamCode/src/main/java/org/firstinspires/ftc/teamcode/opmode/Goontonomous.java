@@ -18,6 +18,7 @@ import org.firstinspires.ftc.teamcode.noncents.tasks.DelayTask;
 import org.firstinspires.ftc.teamcode.noncents.tasks.Task;
 import org.firstinspires.ftc.teamcode.noncents.tasks.TaskRunner;
 import org.firstinspires.ftc.teamcode.rr.MecanumDrive;
+import org.firstinspires.ftc.teamcode.rr.PinpointLocalizer;
 
 import java.util.ArrayDeque;
 import java.util.List;
@@ -49,8 +50,8 @@ public class Goontonomous extends OpMode {
         drive = new MecanumDrive(hardwareMap, start);
         blackboard.put("auto done", false);
 
-        robot = new Robot(hardwareMap, drive.localizer, false);
-        robot.launcher.fallbackRpm = 855;
+        robot = new Robot(hardwareMap, (PinpointLocalizer) drive.localizer, false);
+        robot.launcher.setVelCorrectionEnabled(false);
 
         Supplier<Task> waitRobot = () -> Task.newWithUpdate(() -> robot.notTransitioning());
         Supplier<Task> waitSpunUp =
@@ -60,7 +61,7 @@ public class Goontonomous extends OpMode {
         );
         Supplier<Action> shoot = () -> taskToAction(waitRobot.get().with(waitSpunUp.get())
                 .andThen(robot.deferTransition(Robot.Transfer.RIGHT_BUMPER_START))
-                .andThen(new DelayTask(1300))
+                .andThen(new DelayTask(1400))
                 .andThen(robot.deferTransition(Robot.Transfer.RIGHT_BUMPER_END))
         );
         Action path = drive.actionBuilder(drive.localizer.getPose())
@@ -72,44 +73,40 @@ public class Goontonomous extends OpMode {
                         )
                 ))
                 .waitSeconds(0.6)
-                .setTangent(Math.toRadians(-45))
-                .lineToX(-23)
+                .setTangent(Math.toRadians(-50))
+                .lineToX(-30)
                 .stopAndAdd(shoot.get())
 
                 // pickup, score second set
-                .afterTime(0.3, taskToAction(robot.deferTransition(Robot.Transfer.LEFT_BUMPER_START)))
-                .setTangent(Math.toRadians(0))
-                .splineToSplineHeading(new Pose2d(-14, 30, Math.toRadians(90)), Math.toRadians(90))
-                .strafeToConstantHeading(new Vector2d(-14, 53))
+                .afterTime(0.0, taskToAction(robot.deferTransition(Robot.Transfer.LEFT_BUMPER_START)))
+                .splineTo(new Vector2d(-13, 48), Math.toRadians(90))
+                .splineTo(new Vector2d(-13, 51), Math.toRadians(90))
                 .setTangent(0)
                 .splineTo(new Vector2d(-4, 59), Math.toRadians(90))
                 .waitSeconds(0.6)
                 .afterTime(0, spinUp.get())
-                .strafeToLinearHeading(new Vector2d(-23, 23), Math.toRadians(45))
+                .strafeToLinearHeading(new Vector2d(-16, 23), Math.toRadians(30))
                 .stopAndAdd(shoot.get())
 
                 // third set
-                .afterTime(0.8, taskToAction(robot.deferTransition(Robot.Transfer.LEFT_BUMPER_START)))
-                .setTangent(Math.toRadians(0))
-                .splineToSplineHeading(new Pose2d(-3, 23, Math.toRadians(0)), Math.toRadians(0))
-                .splineToSplineHeading(new Pose2d(12.3, 30, Math.toRadians(90)), Math.toRadians(90))
-                .strafeToConstantHeading(new Vector2d(12.3, 48))
+                .afterTime(0.3, taskToAction(robot.deferTransition(Robot.Transfer.LEFT_BUMPER_START)))
+                .splineTo(new Vector2d(10, 40), Math.toRadians(73))
+                .splineTo(new Vector2d(13, 56), Math.toRadians(78))
                 .afterTime(0.3, spinUp.get())
-                .strafeToLinearHeading(new Vector2d(-23, 23), Math.toRadians(45))
+                .strafeToLinearHeading(new Vector2d(-16, 23), Math.toRadians(30))
                 .stopAndAdd(shoot.get())
 
                 // fourth/final set
-                .afterTime(1.3, taskToAction(robot.deferTransition(Robot.Transfer.LEFT_BUMPER_START)))
-                .setTangent(Math.toRadians(0))
-                .splineToSplineHeading(new Pose2d(12, 23, Math.toRadians(0)), Math.toRadians(0))
-                .splineToSplineHeading(new Pose2d(36.7, 30, Math.toRadians(90)), Math.toRadians(90))
-                .strafeToConstantHeading(new Vector2d(36.7, 48))
+                .afterTime(0.6, taskToAction(robot.deferTransition(Robot.Transfer.LEFT_BUMPER_START)))
+                .splineTo(new Vector2d(32, 40), Math.toRadians(64))
+                .splineTo(new Vector2d(35, 56), Math.toRadians(70))
                 .afterTime(0.6, spinUp.get())
-                .strafeToLinearHeading(new Vector2d(-23, 23), Math.toRadians(45))
+                .setReversed(true)
+                .splineTo(new Vector2d(-16, 23), Math.toRadians(180))
                 .stopAndAdd(shoot.get())
 
                 .setTangent(Math.toRadians(45))
-                .lineToX(-13)
+                .lineToX(-8)
 
                 .build();
         runner.sendTask(actionToTask(path).andThen(Task.newWithOneshot(() -> {
@@ -129,7 +126,6 @@ public class Goontonomous extends OpMode {
             runner.sendTask(robot.doInit());
         }
 
-        System.out.println("fart3 " + drive.localizer.getPose());
         hubs.forEach(LynxModule::clearBulkCache);
 
         long time = System.currentTimeMillis();
@@ -141,6 +137,7 @@ public class Goontonomous extends OpMode {
             telemetry.addData("loop ms", (double) (lastMs.getLast() - lastMs.getFirst()) / lastMs.size());
         }
         telemetry.addData("pose", robot.localizer.getPose());
+        telemetry.addData("target rpm", robot.launcher.getTargetRpm());
 
         runner.update();
         robot.update();
