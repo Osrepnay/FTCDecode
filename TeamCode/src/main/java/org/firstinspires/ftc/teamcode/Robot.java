@@ -204,10 +204,9 @@ public class Robot {
         double xMm = localizer.getPose().position.x * 25.4;
         double yMm = localizer.getPose().position.y * 25.4;
 
-        if (localizer.getPoseVel().linearVel.norm() < 2 && localizer.getPoseVel().angVel < 0.1) {
+        if (localizer.getPoseVel().linearVel.norm() < 0.5 && localizer.getPoseVel().angVel < 0.01) {
             LLResult result = limelight.getLatestResult();
-            if (/* trustNextLimelight &&
-            */(time - lastLLUpdate > LL_INTERVAL_MS && result != null && result.isValid())) {
+            if (trustNextLimelight && (time - lastLLUpdate > LL_INTERVAL_MS && result != null && result.isValid())) {
                 trustNextLimelight = false;
                 lastLLUpdate = time;
                 double[] stddev = result.getStddevMt1();
@@ -216,6 +215,7 @@ public class Robot {
                 double stddevYaw = stddev[5];
                 Pose3D botpose = result.getBotpose();
                 if (botpose.getPosition().x != 0 || botpose.getPosition().y != 0) {
+                    /*
                     Pose2d newPos = new Pose2d(
                             moveCloser(xMm, botpose.getPosition().x * 1000,
                                     Math.exp(-stddevX * stddevPosMult)) / 25.4,
@@ -225,7 +225,13 @@ public class Robot {
                             moveCloserRot(heading, botpose.getOrientation().getYaw(AngleUnit.RADIANS),
                                     Math.exp(-stddevYaw * stddevYawMult))
                     );
-                    // localizer.setPose(newPos);
+                     */
+                    Pose2d newPos = new Pose2d(
+                            botpose.getPosition().x * 1000 / 25.4,
+                            botpose.getPosition().y * 1000 / 25.4,
+                            botpose.getOrientation().getYaw(AngleUnit.RADIANS)
+                    );
+                    localizer.setPose(newPos);
                     // System.out.printf("x %6.2f %6.2f y %6.2f %6.2f rot %6.2f %6.2f\n", xMm / 25.4, botpose.getPosition().x * 1000 / 25.4, yMm / 25.4, botpose.getPosition().y * 1000 / 25.4, Math.toDegrees(heading), botpose.getOrientation().getYaw(AngleUnit.DEGREES));
                 }
             }
@@ -236,12 +242,12 @@ public class Robot {
         // turn off flywheel, set, turn back on
         if (stopAutoRpm && launcher.isFlywheelOn()) {
             launcher.setFlywheelOn(false);
-            launcher.setLauncherParams(localizer.getPose(), localizer.getPoseVel());
+            launcher.setLauncherParams(localizer.getPose(), localizer.getPoseVel(), localizer.getPoseAccel());
             // overrided calculated rpm
-            launcher.setTargetRpm(launcher.fallbackRpm);
+            launcher.setTargetRpm(Launcher.fallbackRpm);
             launcher.setFlywheelOn(true);
         } else {
-            launcher.setLauncherParams(localizer.getPose(), localizer.getPoseVel());
+            launcher.setLauncherParams(localizer.getPose(), localizer.getPoseVel(), localizer.getPoseAccel());
         }
 
         drivetrain.setBrake(state.brake);

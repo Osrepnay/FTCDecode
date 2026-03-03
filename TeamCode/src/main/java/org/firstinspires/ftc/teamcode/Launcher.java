@@ -34,11 +34,13 @@ public class Launcher {
     public static final double RPM_TOLERANCE = 30;
     // public static final long RPM_SAMPLING_MS = 100;
 
-    public static final int TURRET_MIN_TICKS = -502;
-    public static final int TURRET_MAX_TICKS = 570;
-    public static final double TURRET_TICKS_PER_REV = 384.5 * 125 / 27;
+    public static final int TURRET_MIN_TICKS = (int) (-502 * 27.0 / 36);
+    public static final int TURRET_MAX_TICKS = (int) (570 * 27.0 / 36);
+    public static final double TURRET_TICKS_PER_REV = 384.5 * 125 / 36;
     // public static double RPM_TO_IPS = Math.PI * 96 / 25.4 / 60 * 0.;
-    public static double RPM_TO_IPS = 0.078;
+    public static double RPM_TO_IPS = 0.067;
+    // seconds to apply acceleration for
+    public static double ACCEL_SECS = 0.00;
 
     private final DcMotorEx[] motors;
     private final Hood hood;
@@ -46,6 +48,7 @@ public class Launcher {
     private final VoltageSensor voltageSensor;
 
     // really should be private final but dashboard
+    public static PIDController turretPid = new PIDController(0.02, 0.0, 0.0);
     public static PIDController pid = new PIDController(0.005, 0.000001, 0)
             .withIntegralRange(30);
     public static final Lerp rpmFeedforward = new Lerp(
@@ -89,6 +92,7 @@ public class Launcher {
     private boolean flywheelOn = false;
     // measured from front-on, counterclockwise positive, clockwise negative
     private double currentRad = 0;
+    private int turretTargetTicks;
 
     public Launcher(DcMotorEx[] motors, Hood hood, DcMotorEx turret, VoltageSensor voltageSensor) {
         motors[0].setDirection(DcMotor.Direction.REVERSE);
@@ -98,10 +102,7 @@ public class Launcher {
         this.motors = motors;
         this.hood = hood;
         this.turret = turret;
-        PIDFCoefficients turretCoeff = turret.getPIDFCoefficients(DcMotor.RunMode.RUN_TO_POSITION);
-        turretCoeff.p *= 2.2;
-        turretCoeff.i *= 0.6;
-        turret.setPIDFCoefficients(DcMotor.RunMode.RUN_TO_POSITION, turretCoeff);
+        turret.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         // turret.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         this.voltageSensor = voltageSensor;
 
@@ -142,14 +143,16 @@ public class Launcher {
         }
     }
 
-    public void setLauncherParams(Pose2d robotPose, PoseVelocity2d poseVel) {
+    public void setLauncherParams(Pose2d robotPose, PoseVelocity2d poseVel, PoseVelocity2d poseAccel) {
         Pose2d launcherPose = robotPose.plus(new Twist2d(new Vector2d( -22.8 / 25.4, 0), 0));
 
         Vector2d rVec = launcherPose.position;
         double rHeading = launcherPose.heading.toDouble();
+        Vector2d linearVel = poseVel.linearVel;
+        linearVel = linearVel.plus(poseAccel.linearVel.times(ACCEL_SECS));
         Vector2d rVelVec = new Vector2d(
-                Math.cos(rHeading) * poseVel.linearVel.x - Math.sin(rHeading) * poseVel.linearVel.y,
-                Math.cos(rHeading) * poseVel.linearVel.y + Math.sin(rHeading) * poseVel.linearVel.x
+                Math.cos(rHeading) * linearVel.x - Math.sin(rHeading) * linearVel.y,
+                Math.cos(rHeading) * linearVel.y + Math.sin(rHeading) * linearVel.x
         );
         // flip if blue, tuned values are only from red
         // flip params back later
@@ -164,6 +167,7 @@ public class Launcher {
         double targetOffset = disableInterp ? fallbackOffset : offsetInterp.interpolate(rVec.x, rVec.y, null);
         if (!disableInterp && !disableVelCorr && !Double.isNaN(targetRpm)) {
             Vector2d adjustedPos = rVec;
+            // arbitrary limit to stop infinite oscillation, if that's even a thing
             for (int i = 0; i < 5; i++) {
                 Vector2d newGoal = applyGoalOffset(goal, targetOffset);
                 // inches per second
@@ -212,14 +216,9 @@ public class Launcher {
     public void setTurretRadians(double rad) {
         int ticks = (int) (AngleUnit.normalizeRadians(-rad) / 2 / Math.PI * TURRET_TICKS_PER_REV);
         if (ticks < TURRET_MIN_TICKS || ticks > TURRET_MAX_TICKS) {
-            turret.setTargetPosition(Math.min(TURRET_MAX_TICKS, Math.max(TURRET_MIN_TICKS, ticks)));
-            return;
+            ticks = Math.min(TURRET_MAX_TICKS, Math.max(TURRET_MIN_TICKS, ticks));
         }
-        turret.setTargetPosition(ticks);
-        if (turret.getMode() != DcMotor.RunMode.RUN_TO_POSITION) {
-            turret.setMode(DcMotor.RunMode.RUN_TO_POSITION);
-            turret.setPower(1);
-        }
+        turretTargetTicks = ticks;
         currentRad = rad;
     }
 
@@ -237,6 +236,7 @@ public class Launcher {
                 motor.setPower(0);
             }
         }
+        turret.setPower(turretPid.update(turretTargetTicks, turret.getCurrentPosition()));
     }
 
     public double getTargetRpm() {

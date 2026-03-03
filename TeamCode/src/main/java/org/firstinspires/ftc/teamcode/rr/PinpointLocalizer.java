@@ -61,17 +61,31 @@ public final class PinpointLocalizer implements Localizer {
         return txWorldPinpoint.times(txPinpointRobot);
     }
 
+    private long lastUpdate = -1;
     private PoseVelocity2d lastPoseVel = new PoseVelocity2d(new Vector2d(0, 0), 0);
+    // shh
+    private PoseVelocity2d lastPoseAccel = new PoseVelocity2d(new Vector2d(0, 0), 0);
 
     @Override
     public PoseVelocity2d update() {
         driver.update();
         if (Objects.requireNonNull(driver.getDeviceStatus()) == GoBildaPinpointDriver.DeviceStatus.READY) {
+            long time = System.currentTimeMillis();
+            double deltaSec = Math.max(1, time - lastUpdate) / 1000.0;
+            lastUpdate = time;
+
             txPinpointRobot = new Pose2d(driver.getPosX(DistanceUnit.INCH), driver.getPosY(DistanceUnit.INCH), driver.getHeading(UnnormalizedAngleUnit.RADIANS));
             Vector2d worldVelocity = new Vector2d(driver.getVelX(DistanceUnit.INCH), driver.getVelY(DistanceUnit.INCH));
             Vector2d robotVelocity = Rotation2d.fromDouble(-txPinpointRobot.heading.log()).times(worldVelocity);
 
-            lastPoseVel = new PoseVelocity2d(robotVelocity, driver.getHeadingVelocity(UnnormalizedAngleUnit.RADIANS));
+            PoseVelocity2d newPoseVel = new PoseVelocity2d(robotVelocity, driver.getHeadingVelocity(UnnormalizedAngleUnit.RADIANS));
+            PoseVelocity2d newPoseAccel = new PoseVelocity2d(
+                    newPoseVel.linearVel.minus(lastPoseVel.linearVel).div(deltaSec),
+                    (newPoseVel.angVel - lastPoseVel.angVel) / deltaSec
+            );
+
+            lastPoseVel = newPoseVel;
+            lastPoseAccel = newPoseAccel;
             return lastPoseVel;
         }
         return new PoseVelocity2d(new Vector2d(0, 0), 0);
@@ -79,5 +93,9 @@ public final class PinpointLocalizer implements Localizer {
 
     public PoseVelocity2d getPoseVel() {
         return lastPoseVel;
+    }
+
+    public PoseVelocity2d getPoseAccel() {
+        return lastPoseAccel;
     }
 }

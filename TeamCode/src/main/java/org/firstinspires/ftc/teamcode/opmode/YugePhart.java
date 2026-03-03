@@ -37,6 +37,7 @@ import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.teamcode.Color;
+import org.firstinspires.ftc.teamcode.Launcher;
 import org.firstinspires.ftc.teamcode.Robot;
 import org.firstinspires.ftc.teamcode.noncents.input.InputManager;
 import org.firstinspires.ftc.teamcode.noncents.tasks.TaskRunner;
@@ -44,6 +45,7 @@ import org.firstinspires.ftc.teamcode.rr.Localizer;
 
 import java.util.ArrayDeque;
 import java.util.List;
+import java.util.Optional;
 
 @TeleOp
 public class YugePhart extends OpMode {
@@ -55,7 +57,7 @@ public class YugePhart extends OpMode {
 
     @Override
     public void init() {
-        if ((boolean) blackboard.getOrDefault("auto done", false)) {
+        if ((boolean) Optional.ofNullable(blackboard.get("auto done")).orElse(false)) {
             telemetry.addLine(blackboard.toString());
             blackboard.remove("auto done");
             telemetry.update();
@@ -144,9 +146,8 @@ public class YugePhart extends OpMode {
         telemetry.addData("state", robot.getState());
         telemetry.addData("rpm", robot.launcher.getCurrentRpm());
         telemetry.addData("target rpm", robot.launcher.getTargetRpm());
-        telemetry.addData("fallback rpm", robot.launcher.fallbackRpm);
+        telemetry.addData("fallback rpm", Launcher.fallbackRpm);
         telemetry.addData("hood", robot.launcher.getHoodPos());
-        telemetry.addData("heading", Math.toDegrees(robot.drivetrain.getHeading()));
         telemetry.addData("camera is disabled?", robot.isAutoRpmStopped());
         telemetry.addData("pinpoint x", robot.localizer.getPose().position.x);
         telemetry.addData("pinpoint y", robot.localizer.getPose().position.y);
